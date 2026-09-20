@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+:root {
+  /* BALU AI STUDIO theme — pure black, dark gray cards, white text,
+     red primary accent, subtle gray borders. */
+  --background: #000000;
+  --foreground: #fafafa;
+  --card: #0d0d10;
+  --card-foreground: #fafafa;
+  --muted: #17171b;
+  --muted-foreground: #a1a1aa;
+  --border: #26262b;
+  --input: #26262b;
+  --primary: #ef2d45;
+  --primary-foreground: #ffffff;
+  --accent: #17171b;
+  --accent-foreground: #fafafa;
+  --destructive: #ef4444;
+  --ring: #ef2d45;
+  --radius: 0.625rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: rgb(239 45 69 / 0.35);
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #26262b;
+    border-radius: 8px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #3f3f46;
+  }
+}
+
+@layer utilities {
+  .text-gradient-red {
+    background: linear-gradient(120deg, #f87171, #ef2d45 55%, #b91c1c);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .subtle-ring {
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 0.04) inset;
+  }
+}
