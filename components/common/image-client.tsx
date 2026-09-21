@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/common/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { useQueryPrefill } from "@/lib/use-generator";
 import { getHistoryStore } from "@/lib/storage/history";
+import { promptAsksForText, describeTextAsk } from "@/lib/text-detection";
 import { uid } from "@/lib/utils";
 
 const STYLES = [
@@ -172,6 +173,16 @@ export function ImageClient() {
                 rows={3}
               />
             </Field>
+            {promptAsksForText(prompt.trim()) ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200 sm:col-span-2">
+                Your prompt asks the engine to draw {describeTextAsk(prompt)}.
+                Free image engines (Hugging Face, Pollinations, Gemini free
+                tier) can&apos;t reliably draw text — especially Indian
+                scripts — and often paint letters in another language instead.
+                For exact text on an image, use the Thumbnail tool: it draws
+                the text over the picture with a real font.
+              </p>
+            ) : null}
             <Field id="img-style" label="Style">
               <Select
                 id="img-style"

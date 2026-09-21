@@ -16,6 +16,7 @@ import { ErrorState } from "@/components/common/error-state";
 import { Badge } from "@/components/ui/badge";
 import { useQueryPrefill, useGenerator, type GeneratorResult } from "@/lib/use-generator";
 import { getHistoryStore } from "@/lib/storage/history";
+import { promptAsksForText, describeTextAsk } from "@/lib/text-detection";
 import { uid } from "@/lib/utils";
 
 const EMOTIONS = ["powerful", "joyful", "emotional", "hopeful", "serious", "calm"];
@@ -36,23 +37,36 @@ const THUMB_LANGS = [
   { value: "en", label: "English" },
   { value: "te", label: "తెలుగు (Telugu)" },
   { value: "hi", label: "हिन्दी (Hindi)" },
+  { value: "mr", label: "मराठी (Marathi)" },
   { value: "ta", label: "தமிழ் (Tamil)" },
   { value: "kn", label: "ಕನ್ನಡ (Kannada)" },
   { value: "ml", label: "മലയാളം (Malayalam)" },
+  { value: "bn", label: "বাংলা (Bengali)" },
+  { value: "as", label: "অসমীয়া (Assamese)" },
+  { value: "gu", label: "ગુજરાતી (Gujarati)" },
+  { value: "pa", label: "ਪੰਜਾਬੀ (Punjabi)" },
+  { value: "or", label: "ଓଡ଼ିଆ (Odia)" },
 ];
 
 /**
  * Real fonts per script — the selected language's text is DRAWN onto the
  * thumbnail with these (not asked from the AI). Nirmala UI ships with
- * Windows and covers every Indian script; the rest are safe fallbacks.
+ * Windows and covers every Indian script; the Noto/web and legacy families
+ * are safe fallbacks on Android, macOS and iOS.
  */
 const FONT_STACKS: Record<string, string> = {
   en: 'Arial Black, "Segoe UI", Arial, sans-serif',
   te: '"Nirmala UI", "Noto Sans Telugu", Gautami, Vani, sans-serif',
   hi: '"Nirmala UI", "Noto Sans Devanagari", Mangal, sans-serif',
+  mr: '"Nirmala UI", "Noto Sans Devanagari", Mangal, sans-serif',
   ta: '"Nirmala UI", "Noto Sans Tamil", Latha, sans-serif',
   kn: '"Nirmala UI", "Noto Sans Kannada", Tunga, sans-serif',
   ml: '"Nirmala UI", "Noto Sans Malayalam", Kartika, sans-serif',
+  bn: '"Nirmala UI", "Noto Sans Bengali", Vrinda, "Bangla Sangam MN", sans-serif',
+  as: '"Nirmala UI", "Noto Sans Bengali", Vrinda, "Bangla Sangam MN", sans-serif',
+  gu: '"Nirmala UI", "Noto Sans Gujarati", Shruti, "Gujarati Sangam MN", sans-serif',
+  pa: '"Nirmala UI", "Noto Sans Gurmukhi", Raavi, "Gurmukhi MN", sans-serif',
+  or: '"Nirmala UI", "Noto Sans Oriya", Kalinga, "Oriya MN", sans-serif',
 };
 
 const THUMB_W = 1280;
@@ -602,19 +616,28 @@ export function ThumbnailClient() {
 
     // The AI paints ONLY the background — asking image models to draw Indian
     // scripts gives English or gibberish, so we never let it write the text.
-    const basePrompt = overlay
-      ? `${source}, no text, no words, no letters, clean empty space at the bottom for a headline`
-      : source;
+    const guard = overlay
+      ? ", no text, no words, no letters, clean empty space at the bottom for a headline"
+      : "";
 
     // Reference style → palette steering (prompt-level, honest).
     const colorSuffix = palette.length
       ? ` Dominant color palette: ${palette.join(", ")} — use exactly these colors as the main palette.`
       : "";
 
+    // Cap the user's text (not the final string) so the structural guard and
+    // palette always survive — previously a long prompt truncated them and
+    // the model happily painted stray letters of its own.
+    const sourceCapped =
+      source.length > 1400 ? `${source.slice(0, 1400)}…` : source;
+
     const jobs = Array.from({ length: variations }, (_, i) => {
       const seed = Math.floor(Math.random() * 2 ** 31);
       const twist = TWISTS[i % TWISTS.length] ?? "";
-      const prompt = `${basePrompt}${colorSuffix}, ${twist}`.slice(0, 1000);
+      const prompt = `${sourceCapped}${guard}${colorSuffix}${twist ? `, ${twist}` : ""}`.slice(
+        0,
+        1500,
+      );
       return fetchVariant(prompt, overlay, portrait, seed);
     });
 
@@ -658,6 +681,12 @@ export function ThumbnailClient() {
   const missingConcept = !mainTopic.trim() && !videoTitle.trim();
   const langLabel =
     THUMB_LANGS.find((l) => l.value === language)?.label ?? "English";
+  // A pasted prompt that asks for text (quoted phrase or non-Latin script)
+  // while no real "Text on the image" is set → the engine cannot draw it
+  // faithfully, so say so instead of returning wrong-script letters.
+  const pastedPrompt = promptMode === "prompt" ? fullPrompt.trim() : "";
+  const warnsAboutPromptText =
+    promptAsksForText(pastedPrompt) && !thumbText.trim();
 
   return (
     <div>
@@ -705,9 +734,21 @@ export function ThumbnailClient() {
               </Field>
               <p className="text-xs text-muted-foreground">
                 {fullPrompt.trim()
-                  ? `${fullPrompt.trim().length} characters — the image model reads roughly the first 1000.`
+                  ? `${fullPrompt.trim().length} characters — the image model reads roughly the first 1,500.`
                   : "Tip: describe the subject, the light, the mood and the colours. Add “no text” for a clean background to write the headline on."}
               </p>
+              {warnsAboutPromptText ? (
+                <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs leading-5 text-amber-200">
+                  Your prompt asks the image engine to draw{" "}
+                  {describeTextAsk(pastedPrompt)}. Free engines (Hugging Face,
+                  Pollinations, Gemini free tier) can&apos;t reliably draw
+                  text — especially Indian scripts — and often paint letters
+                  in another language instead. For exact text, type it in
+                  “Text on the image” below: it&apos;s drawn over the
+                  thumbnail with a real font, and the process adds “no text,
+                  no words, no letters” to stop stray letters.
+                </p>
+              ) : null}
             </div>
           ) : (
           <div className="grid gap-4 sm:grid-cols-2">

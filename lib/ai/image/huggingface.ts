@@ -61,7 +61,7 @@ export const huggingfaceProvider: ImageProvider = {
               Accept: "image/png",
             },
             body: JSON.stringify({
-              inputs: input.prompt.slice(0, 1000),
+              inputs: input.prompt.slice(0, 1500),
               parameters: {
                 ...(input.negativePrompt
                   ? { negative_prompt: input.negativePrompt.slice(0, 500) }

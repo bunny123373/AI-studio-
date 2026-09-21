@@ -35,9 +35,15 @@ const LANG_WORDS: Record<string, string> = {
   en: "",
   te: "in Telugu script",
   hi: "in Hindi script",
+  mr: "in Marathi script",
   ta: "in Tamil script",
   kn: "in Kannada script",
   ml: "in Malayalam script",
+  bn: "in Bengali script",
+  as: "in Assamese script",
+  gu: "in Gujarati script",
+  pa: "in Punjabi script",
+  or: "in Odia script",
 };
 
 /**
@@ -77,7 +83,9 @@ export async function POST(req: Request) {
   const overlayPhrase = buildOverlayPhrase(text, textLang);
 
   const baseStyled = STYLES[style] ? `${prompt}, ${STYLES[style]}` : prompt;
-  const styledPrompt = `${baseStyled}${overlayPhrase}`.slice(0, 1000);
+  // One generous cap so long user prompts are never butchered mid-instruction.
+  // Each provider applies its own final slice anyway (1500 for Gemini/HF).
+  const styledPrompt = `${baseStyled}${overlayPhrase}`.slice(0, 1500);
 
   const input: ImageGenerationInput = {
     prompt: styledPrompt,
@@ -152,7 +160,7 @@ export async function POST(req: Request) {
     ) {
       result = await provider.generate({
         ...input,
-        prompt: `${prompt}${overlayPhrase}`.slice(0, 1000),
+        prompt: `${prompt}${overlayPhrase}`.slice(0, 1500),
       });
     }
   }
