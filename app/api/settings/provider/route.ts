@@ -11,7 +11,7 @@ import {
 
 export const runtime = "nodejs";
 
-const CHOICES: TextProviderChoice[] = ["gemini", "openai"];
+const CHOICES: TextProviderChoice[] = ["gemini", "openai", "openrouter"];
 
 /**
  * GET — the current runtime override (in-memory) and the per-provider
@@ -27,7 +27,7 @@ export async function GET() {
 
 /**
  * POST — switch the active text provider / model at runtime.
- * Body: { provider?: "gemini" | "openai" | null, model?: string | null }
+ * Body: { provider?: "gemini" | "openai" | "openrouter" | null, model?: string | null }
  * Passing provider: null resets to the `.env.local` default.
  * Only available locally / when the host explicitly allows it.
  */
@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   } else if (typeof rawProvider === "string" && (CHOICES as string[]).includes(rawProvider)) {
     provider = rawProvider as TextProviderChoice;
   } else {
-    return badRequest("`provider` must be \"gemini\", \"openai\" or null.");
+    return badRequest("`provider` must be \"gemini\", \"openai\", \"openrouter\" or null.");
   }
 
   const model =
@@ -87,6 +87,10 @@ function providerState() {
       openai: {
         configured: canSelectTextProvider("openai"),
         model: env.openaiModel,
+      },
+      openrouter: {
+        configured: canSelectTextProvider("openrouter"),
+        model: env.openrouterModel,
       },
     },
   };

@@ -101,7 +101,10 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
   // else the .env.local default. Derived at render — no state syncing.
   const defaultProvider =
     status?.runtime?.provider ??
-    (status?.text && (status.text.id === "gemini" || status.text.id === "openai")
+    (status?.text &&
+    (status.text.id === "gemini" ||
+      status.text.id === "openai" ||
+      status.text.id === "openrouter")
       ? status.text.id
       : status?.textOptions?.[0]?.id ?? "");
   const defaultModel =
@@ -305,7 +308,7 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
               <code className={CODE}>.env.local</code>:
             </p>
             <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
-              {`# any OpenAI-compatible endpoint (OpenAI, Groq, DeepSeek, Ollama...)\nAI_TEXT_PROVIDER=openai\nOPENAI_API_KEY=sk-...\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-4o-mini\n\n# or Google Gemini (free tier)\n# AI_TEXT_PROVIDER=gemini\n# GEMINI_API_KEY=...`}
+              {`# any OpenAI-compatible endpoint (OpenAI, Groq, DeepSeek, Ollama...)\nAI_TEXT_PROVIDER=openai\nOPENAI_API_KEY=sk-...\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-4o-mini\n\n# or OpenRouter (Ling 3.0 Flash VL)\n# AI_TEXT_PROVIDER=openrouter\n# OPENROUTER_API_KEY=sk-or-v1-...\n# OPENROUTER_MODEL=inclusionai/ling-3.0-flash-vl\n\n# or Google Gemini (free tier)\n# AI_TEXT_PROVIDER=gemini\n# GEMINI_API_KEY=...`}
             </pre>
             <div>
               When a provider is configured, generated content is labelled{" "}
@@ -340,7 +343,7 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
               <Field
                 id="st-model"
                 label="Model"
-                hint="Model name on that provider, e.g. gemini-3.6-flash or gpt-4o-mini."
+                hint="Model name on that provider, e.g. gemini-3.6-flash, gpt-4o-mini or inclusionai/ling-3.0-flash-vl."
               >
                 <Input
                   id="st-model"

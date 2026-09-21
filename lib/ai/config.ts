@@ -10,7 +10,7 @@ import { env } from "@/lib/ai/env";
  * but resets on restart (and is per-instance on serverless — documented in
  * the UI, which is why Vercel still needs the env vars set).
  */
-export type TextProviderChoice = "gemini" | "openai";
+export type TextProviderChoice = "gemini" | "openai" | "openrouter";
 
 const runtime: { provider: TextProviderChoice | null; model: string | null } = {
   provider: null,
@@ -35,6 +35,7 @@ export function getRuntimeText(): {
 /** True when this provider has enough env config to be usable. */
 export function canSelectTextProvider(id: TextProviderChoice): boolean {
   if (id === "gemini") return Boolean(env.geminiApiKey);
+  if (id === "openrouter") return Boolean(env.openrouterApiKey);
   // OpenAI-compatible endpoints (OpenAI, Groq, DeepSeek, Ollama, OpenRouter…)
   // are usable with a key, or keyless when a custom base URL is set.
   return (
@@ -45,7 +46,9 @@ export function canSelectTextProvider(id: TextProviderChoice): boolean {
 /** Model to use for a provider — runtime override wins, else the env default. */
 export function modelFor(id: TextProviderChoice): string {
   if (runtime.provider === id && runtime.model) return runtime.model;
-  return id === "gemini" ? env.geminiModel : env.openaiModel;
+  if (id === "gemini") return env.geminiModel;
+  if (id === "openrouter") return env.openrouterModel;
+  return env.openaiModel;
 }
 
 /**

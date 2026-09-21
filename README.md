@@ -41,7 +41,7 @@ in seconds when you want them.
 | 🧠 **13 tools, one studio** | Images, thumbnails, lyrics, captions, YouTube packs, scripts, SEO, video prompts, Bible, translator, library, history, settings. |
 | 🎤 **Real Audio → SRT** | faster-whisper transcription runs **100% locally** — your audio never leaves your machine. Upload or paste a **YouTube URL**; get sentence-aware, karaoke-synced, editable subtitles (SRT/VTT/TXT). |
 | 🔓 **Free-first** | Dashboard, templates, library, history and settings work with **zero keys**. No locked features, no upsell walls. |
-| 🔌 **Swappable AI providers** | Text (`lib/ai/text/*`) and image (`lib/ai/image/*`) providers are plug-in by design — OpenAI, Gemini, Pollinations.ai, local SD. |
+| 🔌 **Swappable AI providers** | Text (`lib/ai/text/*`) and image (`lib/ai/image/*`) providers are plug-in by design — OpenAI-compatible, OpenRouter (Ling 3.0 Flash VL), Gemini, Pollinations.ai, local SD. |
 | 🛡 **Honest by default** | SEO tools state clearly that suggestions don't guarantee rankings. The Bible tool never invents quotes. No placeholder buttons. |
 | 🌐 **6 Indian languages** | Telugu, English, Hindi, Tamil, Kannada, Malayalam for lyrics and translation — natural, conversational Telugu output. |
 | 🔒 **Private** | Keys live only server-side. Audio temp files are auto-deleted (`AUDIO_RETENTION_HOURS`). |
@@ -192,6 +192,14 @@ still works.** Keys never reach the browser.
 
 Anything OpenAI-compatible works (Ollama, Groq, OpenRouter, LM Studio, vLLM,
 DeepSeek…) — the provider is a plain `fetch` to `OPENAI_BASE_URL/chat/completions`.
+
+**OpenRouter** is wired as its own provider too: set `AI_TEXT_PROVIDER=openrouter`
++ `OPENROUTER_API_KEY` and it uses `inclusionai/ling-3.0-flash-vl` (Ling 3.0
+Flash VL) by default. Ling is a vision-language model — it excels at text,
+and in the image tools' engine picker it refines your prompt before the free
+Pollinations engine paints the picture (it cannot generate images itself, and
+the UI says so).
+
 Transient provider failures (503 “high demand”, 429, 5xx blips) get a short
 backoff-and-retry first; if the provider still fails, the app **falls back to the
 template engine** and says so, so output always arrives.
@@ -209,10 +217,13 @@ variables — the picker never stores or sends them.
 
 | Variable | Default | Options / purpose |
 | --- | --- | --- |
-| `AI_TEXT_PROVIDER` | `template` | `template` (offline) · `openai` · `gemini` · `none` |
+| `AI_TEXT_PROVIDER` | `template` | `template` (offline) · `openai` · `openrouter` · `gemini` · `none` |
 | `OPENAI_API_KEY` | — | Any OpenAI-compatible API (OpenAI, Groq, DeepSeek, Ollama…) |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Point at local models (LM Studio, vLLM…) |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model name |
+| `OPENROUTER_API_KEY` | — | OpenRouter key (`sk-or-v1-…`) — enables the OpenRouter text provider + Ling prompt-refiner in the image tools |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter endpoint |
+| `OPENROUTER_MODEL` | `inclusionai/ling-3.0-flash-vl` | Ling 3.0 Flash VL — vision-language model: text generation + image-prompt refinement (cannot paint images itself) |
 | `GEMINI_API_KEY` | — | Google Gemini (free tier) — powers text AND image (Nano Banana) |
 | `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini text model |
 | `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Nano Banana image model (`gemini-2.5-flash-image` for first-gen) |
@@ -262,7 +273,7 @@ components/
   common/               # generators, output cards, page-specific clients
   layout/               # sidebar, mobile nav, app shell
 lib/
-  ai/                   # providers: text (openai/gemini/template) + image (gemini/huggingface/pollinations/local)
+  ai/                   # providers: text (openai/openrouter/gemini/template) + image (gemini/huggingface/pollinations/local)
   audio/                # ffmpeg detection, SRT builder/validator, job registry, pipeline
   storage/              # history (localStorage, DB-ready interface)
   api/                  # route helpers + rate limiting

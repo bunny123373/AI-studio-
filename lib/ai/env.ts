@@ -10,6 +10,12 @@ export const env = {
   openaiApiKey: process.env.OPENAI_API_KEY ?? "",
   openaiBaseUrl: (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, ""),
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
+  openrouterApiKey: process.env.OPENROUTER_API_KEY ?? "",
+  openrouterBaseUrl: (
+    process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1"
+  ).replace(/\/$/, ""),
+  openrouterModel:
+    process.env.OPENROUTER_MODEL ?? "inclusionai/ling-3.0-flash-vl",
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
   geminiImageModel: process.env.GEMINI_IMAGE_MODEL ?? "gemini-3.1-flash-image",

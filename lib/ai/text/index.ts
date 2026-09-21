@@ -1,6 +1,7 @@
 import { env } from "@/lib/ai/env";
 import { getRuntimeText } from "@/lib/ai/config";
 import { openaiProvider } from "@/lib/ai/text/openai";
+import { openrouterProvider } from "@/lib/ai/text/openrouter";
 import { geminiProvider } from "@/lib/ai/text/gemini";
 import type { TextProvider } from "@/lib/ai/types";
 
@@ -14,6 +15,8 @@ export function getTextProvider(): TextProvider {
   switch (rt.provider ?? env.textProvider) {
     case "openai":
       return openaiProvider;
+    case "openrouter":
+      return openrouterProvider;
     case "gemini":
       return geminiProvider;
     case "none":

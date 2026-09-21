@@ -38,6 +38,12 @@ export async function GET() {
         configured: canSelectTextProvider("openai"),
         model: env.openaiModel,
       },
+      {
+        id: "openrouter",
+        label: "OpenRouter (Ling 3.0 Flash VL)",
+        configured: canSelectTextProvider("openrouter"),
+        model: env.openrouterModel,
+      },
     ],
     runtime: getRuntimeText(),
     image: { id: image.id, label: image.label, configured: image.configured },

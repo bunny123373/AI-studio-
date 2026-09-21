@@ -95,6 +95,7 @@ const IMAGE_ENGINES = [
   { value: "gemini", label: "Gemini (default)" },
   { value: "huggingface", label: "Hugging Face (needs token)" },
   { value: "pollinations", label: "Pollinations (free)" },
+  { value: "openrouter", label: "OpenRouter — Ling VL prompt" },
 ];
 
 interface ThumbVariant {
@@ -963,7 +964,7 @@ export function ThumbnailClient() {
               <Field
                 id="th-engine"
                 label="Image engine"
-                hint="Gemini (Nano Banana) is the default. Hugging Face needs a free HUGGINGFACE_API_KEY token. Any engine that fails or isn't configured honestly falls back to free Pollinations (its free tier can be busy at peak times)."
+                hint="Gemini (Nano Banana) is the default. Hugging Face needs a free HUGGINGFACE_API_KEY token. OpenRouter uses the Ling 3.0 Flash VL model to refine your prompt, then paints with free Pollinations (Ling is a vision-language model — it can't generate images). Any engine that fails or isn't configured honestly falls back to free Pollinations (its free tier can be busy at peak times)."
               >
                 <Select
                   id="th-engine"
