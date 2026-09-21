@@ -4,6 +4,7 @@ import { rateLimit } from "@/lib/ai/ratelimit";
 import {
   allowedAudio,
   maxUploadBytes,
+  transcriptionBackendReady,
 } from "@/lib/audio/ffmpeg";
 import { startTranscribe } from "@/lib/audio/transcribe";
 
@@ -26,6 +27,15 @@ export async function POST(req: Request) {
   const rl = rateLimit(`audio:${clientIp(req)}`, Math.max(2, Math.floor(env.rateLimitMax / 4)), env.rateLimitWindowMs);
   if (!rl.ok) {
     return json({ ok: false, error: "Too many transcription jobs. Try again soon." }, 429);
+  }
+
+  // Fail fast on hosts that can't run local Whisper (serverless/edge).
+  const backend = await transcriptionBackendReady();
+  if (!backend.ready) {
+    return json(
+      { ok: false, error: backend.reason ?? "Audio transcription is unavailable on this host." },
+      503,
+    );
   }
 
   let form: FormData;

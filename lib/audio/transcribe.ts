@@ -4,11 +4,10 @@
  * job so the UI never blocks.
  */
 
-import { execFile } from "node:child_process";
+import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 
 import {
   cleanupWorkDir,
@@ -25,8 +24,6 @@ import {
 import { createJob, getJob, updateJob, type AudioJob, type TranscribeSegment } from "@/lib/audio/jobs";
 import { translateCues } from "@/lib/audio/translate";
 import { uid } from "@/lib/utils";
-
-const execFileP = promisify(execFile);
 
 export interface TranscribeOptions {
   language: string; // auto | te | en | hi | ta | kn | ml
@@ -158,10 +155,9 @@ async function runPipeline(jobId: string, opts: TranscribeOptions) {
         `${opts.diarize ? " + speaker diarization" : ""} — the first run may download the model...`,
     });
 
-    const { stdout, stderr } = await execFileP(pythonInterpreter(), pythonArgs, {
+    /* ---------------------------------------------- run + stream real progress */
+    const child = spawn(pythonInterpreter(), pythonArgs, {
       windowsHide: true,
-      timeout: 40 * 60 * 1000,
-      maxBuffer: 128 * 1024 * 1024,
       env: {
         ...process.env,
         // Force strict UTF-8 in the Python child on Windows (stdout pipes
@@ -170,6 +166,71 @@ async function runPipeline(jobId: string, opts: TranscribeOptions) {
         PYTHONUTF8: "1",
       },
     });
+
+    const stdoutChunks: Buffer[] = [];
+    let stderrBuf = "";
+    let lastRounded = -1;
+    let timedOut = false;
+
+    // Hard kill after 40 minutes (mirrors the old execFile timeout).
+    const killTimer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, 40 * 60 * 1000);
+
+    // stdout stays the single JSON document; stderr carries {evt:progress}
+    // NDJSON + incidental Whisper logs.
+    child.stdout?.on("data", (chunk: Buffer) => stdoutChunks.push(chunk));
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderrBuf += chunk.toString("utf8");
+      if (stderrBuf.length > 64 * 1024) {
+        stderrBuf = stderrBuf.slice(-64 * 1024);
+      }
+      let nl: number;
+      while ((nl = stderrBuf.indexOf("\n")) !== -1) {
+        const line = stderrBuf.slice(0, nl).trim();
+        stderrBuf = stderrBuf.slice(nl + 1);
+        const m = /^\{"evt":"progress","pct":(\d+(?:\.\d+)?)\}$/.exec(line);
+        if (!m) continue;
+        const pct = Number(m[1]);
+        const rounded = Math.round(pct);
+        if (rounded === lastRounded) continue;
+        lastRounded = rounded;
+        updateJob(jobId, {
+          stage: "transcribing",
+          progress: Math.min(86, Math.round(52 + pct * 0.34)),
+          message: `Transcribing with faster-whisper (model: ${opts.model}) — ${rounded}% of audio decoded…`,
+        });
+      }
+    });
+
+    const exitCode = await new Promise<number>((resolve) => {
+      child.on("close", (code) => resolve(code ?? -1));
+    });
+    clearTimeout(killTimer);
+
+    const stdout = Buffer.concat(stdoutChunks).toString("utf8");
+    const stderr = stderrBuf.slice(0, 80_000);
+    if (timedOut) {
+      throw new Error("Transcription timed out after 40 minutes.");
+    }
+    if (exitCode !== 0) {
+      // The Python backend prints {"ok":false,...} to stdout for known
+      // failures (missing deps, model load…) — prefer that message.
+      let known: { ok?: boolean; error?: string } | null = null;
+      try {
+        known = JSON.parse(stdout) as { ok?: boolean; error?: string };
+      } catch {
+        known = null;
+      }
+      if (known && known.ok === false && typeof known.error === "string") {
+        throw new Error(known.error);
+      }
+      throw new Error(
+        "The transcription backend exited unexpectedly.\n" +
+          (stderr || `exit code ${exitCode}`),
+      );
+    }
 
     let payload: {
       ok?: boolean;

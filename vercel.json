@@ -1,0 +1,22 @@
+{
+  "framework": "nextjs",
+  "functions": {
+    "app/api/ai/image/route.ts": { "maxDuration": 60 },
+    "app/api/ai/text/route.ts": { "maxDuration": 60 },
+    "app/api/audio/health/route.ts": { "maxDuration": 60 },
+    "app/api/audio/srt/route.ts": { "maxDuration": 60 },
+    "app/api/audio/status/[jobId]/route.ts": { "maxDuration": 60 },
+    "app/api/audio/transcribe/route.ts": { "maxDuration": 60 },
+    "app/api/audio/youtube/route.ts": { "maxDuration": 60 },
+    "app/api/bible/route.ts": { "maxDuration": 60 },
+    "app/api/caption/route.ts": { "maxDuration": 60 },
+    "app/api/lyrics/route.ts": { "maxDuration": 60 },
+    "app/api/script/route.ts": { "maxDuration": 60 },
+    "app/api/seo/route.ts": { "maxDuration": 60 },
+    "app/api/settings/status/route.ts": { "maxDuration": 60 },
+    "app/api/thumbnail/route.ts": { "maxDuration": 60 },
+    "app/api/translate/route.ts": { "maxDuration": 60 },
+    "app/api/video-prompt/route.ts": { "maxDuration": 60 },
+    "app/api/youtube/route.ts": { "maxDuration": 60 }
+  }
+}

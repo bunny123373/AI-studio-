@@ -193,11 +193,11 @@ export function SettingsClient() {
             <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
               {`# any OpenAI-compatible endpoint (OpenAI, Groq, DeepSeek, Ollama...)\nAI_TEXT_PROVIDER=openai\nOPENAI_API_KEY=sk-...\nOPENAI_BASE_URL=https://api.openai.com/v1\nOPENAI_MODEL=gpt-4o-mini\n\n# or Google Gemini (free tier)\n# AI_TEXT_PROVIDER=gemini\n# GEMINI_API_KEY=...`}
             </pre>
-            <p>
+            <div>
               When a provider is configured, generated content is labelled{" "}
               <Badge variant="success" className="align-middle">AI provider</Badge>. If the
               provider fails it falls back to the template.
-            </p>
+            </div>
           </CardContent>
         </Card>
 

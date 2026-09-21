@@ -1,7 +1,7 @@
 import { badRequest, clientIp, json } from "@/lib/api/generate-route";
 import { env } from "@/lib/ai/env";
 import { rateLimit } from "@/lib/ai/ratelimit";
-import { isYoutubeUrl, isYtDlpAvailable } from "@/lib/audio/ffmpeg";
+import { isYoutubeUrl, isYtDlpAvailable, transcriptionBackendReady } from "@/lib/audio/ffmpeg";
 import { startTranscribe } from "@/lib/audio/transcribe";
 
 export const runtime = "nodejs";
@@ -44,6 +44,14 @@ export async function POST(req: Request) {
   if (!url) return badRequest("`url` is required.");
   if (!isYoutubeUrl(url)) {
     return badRequest("That does not look like a YouTube URL (youtube.com / youtu.be).");
+  }
+  // Fail fast on hosts that can't run local Whisper (serverless/edge).
+  const backend = await transcriptionBackendReady();
+  if (!backend.ready) {
+    return json(
+      { ok: false, error: backend.reason ?? "Audio transcription is unavailable on this host." },
+      503,
+    );
   }
   if (!(await isYtDlpAvailable())) {
     return json({

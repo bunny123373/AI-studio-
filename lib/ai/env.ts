@@ -11,7 +11,7 @@ export const env = {
   openaiBaseUrl: (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, ""),
   openaiModel: process.env.OPENAI_MODEL ?? "gpt-4o-mini",
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+  geminiModel: process.env.GEMINI_MODEL ?? "gemini-3.6-flash",
   imageProvider: process.env.IMAGE_PROVIDER ?? "pollinations",
   pollinationsApiKey: process.env.POLLINATIONS_API_KEY ?? "",
   localSdUrl: (process.env.LOCAL_SD_URL ?? "http://127.0.0.1:7860").replace(/\/$/, ""),

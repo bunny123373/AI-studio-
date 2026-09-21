@@ -97,6 +97,37 @@ export async function isFasterWhisperAvailable(): Promise<boolean> {
 }
 
 /**
+ * True when THIS host can actually run local Whisper transcription.
+ * Serverless/edge hosts (Vercel, CF Workers, …) have no Python, so uploads
+ * there must fail fast with a clear message instead of creating a job that
+ * dies with `spawn python ENOENT`.
+ */
+export async function transcriptionBackendReady(): Promise<{
+  ready: boolean;
+  reason?: string;
+}> {
+  if (!(await isPythonAvailable())) {
+    return {
+      ready: false,
+      reason:
+        "This server has no Python, so audio transcription cannot run here. " +
+        "It needs Python + faster-whisper on the same host — use your local " +
+        "machine or a VPS (a free Vercel/Netlify site can't do it).",
+    };
+  }
+  if (!(await isFasterWhisperAvailable())) {
+    return {
+      ready: false,
+      reason:
+        "faster-whisper is not installed on this server. Install it with:\n" +
+        "  pip install faster-whisper\n" +
+        "and restart. Audio transcription runs locally on the host that has it.",
+    };
+  }
+  return { ready: true };
+}
+
+/**
  * Speaker diarization availability: pyannote.audio installed AND a HF token
  * present (PYANNOTE_AUTH_TOKEN / HUGGINGFACE_API_KEY / HF_TOKEN). This is the
  * honest signal the UI uses to enable the "Speaker labels" option.

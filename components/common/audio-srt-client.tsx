@@ -1045,7 +1045,7 @@ export function AudioSrtClient() {
           </div>
 
           {job?.result?.detectedLanguage && language === "auto" ? (
-            <p className="mb-3 flex flex-wrap items-center gap-2 text-xs">
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-xs">
               <Badge variant="outline" className="text-foreground/80">
                 Detected: {langLabel(job.result.detectedLanguage)}
                 {typeof job.result.languageConfidence === "number"
@@ -1061,7 +1061,7 @@ export function AudioSrtClient() {
                   language and try again.
                 </span>
               ) : null}
-            </p>
+            </div>
           ) : null}
 
           {job?.result?.notice ? (

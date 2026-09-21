@@ -200,7 +200,7 @@ output always arrives.
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Point at local models (LM Studio, vLLM…) |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model name |
 | `GEMINI_API_KEY` | — | Google Gemini (free tier) |
-| `GEMINI_MODEL` | `gemini-1.5-flash` | Gemini model |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini model |
 | `IMAGE_PROVIDER` | `pollinations` | `pollinations` (free) · `local` · `none` |
 | `POLLINATIONS_API_KEY` | *(empty)* | Optional free Pollinations key (`sk_…` from enter.pollinations.ai — reliable endpoint; without it the keyless free tier is used) |
 | `LOCAL_SD_URL` | `http://127.0.0.1:7860` | Local Stable Diffusion (AUTOMATIC1111 API) |
@@ -279,6 +279,27 @@ Runs anywhere Next.js runs — Vercel, Node servers, Docker.
   `AUDIO_WORK_DIR` give you the knobs to stay within host limits.
 - TTS is not bundled; for testing, synthesize speech (e.g. `edge-tts`) and feed
   it straight into Audio → SRT.
+
+### Deploying to Vercel (free)
+
+The `vercel.json` pins every API route to `maxDuration: 60` (Hobby-plan cap).
+All image/text/thumbnail tools work — **Audio → SRT does not**, because
+serverless hosts have no Python; the UI detects this from `/api/audio/health`
+and the upload routes return a clear 503 instead of a doomed job. Keep that
+tool on your local machine or a VPS.
+
+Environment variables to add in Vercel (*Settings → Environment Variables*):
+
+| Variable | Value | Purpose |
+| --- | --- | --- |
+| `AI_TEXT_PROVIDER` | `openai` (or `gemini`) | text AI for concepts/scripts/translation |
+| `OPENAI_API_KEY` | your key | required for text AI (any OpenAI-compatible provider) — do **not** set `OPENAI_BASE_URL` to `localhost` on a hosted site |
+| `IMAGE_PROVIDER` | `pollinations` | image generation (online; free tier with optional key) |
+| `POLLINATIONS_API_KEY` | your key | reliable `gen.pollinations.ai` endpoint |
+| (optional) | `GEMINI_API_KEY`, `HUGGINGFACE_API_KEY`, … | set to taste, see Configuration |
+
+Deploy: push to GitHub → *vercel.com/new* → import the repo → add env vars →
+Deploy. Or CLI: `npx vercel --prod` (logs in via browser once).
 
 ---
 

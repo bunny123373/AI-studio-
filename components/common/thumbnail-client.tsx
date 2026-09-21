@@ -57,6 +57,14 @@ const FONT_STACKS: Record<string, string> = {
 const THUMB_W = 1280;
 const THUMB_H = 720;
 
+/** Per-variant composition angle, so A/B thumbnails differ beyond the seed. */
+const TWISTS = [
+  "dramatic rim lighting, cinematic depth",
+  "vibrant saturated colors, bold punchy contrast",
+  "soft diffused light, clean premium look",
+  "high-contrast spotlight, editorial style",
+];
+
 interface ImageResult {
   ok: boolean;
   url?: string;
@@ -65,6 +73,16 @@ interface ImageResult {
   error?: string;
   /** True when the selected-language text was drawn on top with a real font. */
   composed?: boolean;
+}
+
+interface ThumbVariant {
+  ok: boolean;
+  seed?: number;
+  url?: string;
+  dataUrl?: string;
+  composed?: boolean;
+  /** Honest per-variant note (e.g. text could not be drawn — raw shown). */
+  error?: string;
 }
 
 /** First short "Main:" line from the concept's Thumbnail Text Suggestions. */
@@ -143,14 +161,60 @@ function fitOverlayFont(
 }
 
 /**
+ * Dominant colors of an image (quantized bucket counts). Used to steer the
+ * image prompt toward a reference thumbnail's palette — an honest, prompt-level
+ * "style clone" (the provider is text-to-image only).
+ */
+function extractPalette(img: HTMLImageElement, maxColors = 4): string[] {
+  const cv = document.createElement("canvas");
+  const S = 48;
+  cv.width = S;
+  cv.height = S;
+  const ctx = cv.getContext("2d", { willReadFrequently: true });
+  if (!ctx) return [];
+  const scale = Math.max(S / img.width, S / img.height);
+  const dw = img.width * scale;
+  const dh = img.height * scale;
+  ctx.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
+  let data: Uint8ClampedArray;
+  try {
+    data = ctx.getImageData(0, 0, S, S).data;
+  } catch {
+    return [];
+  }
+  const buckets = new Map<number, number>();
+  for (let i = 0; i < data.length; i += 4) {
+    const key = ((data[i] >> 6) << 4) | ((data[i + 1] >> 6) << 2) | (data[i + 2] >> 6);
+    buckets.set(key, (buckets.get(key) ?? 0) + 1);
+  }
+  const sorted = [...buckets.entries()].sort((a, b) => b[1] - a[1]);
+  const out: string[] = [];
+  for (const [key] of sorted) {
+    const r = ((key >> 4) & 3) * 64 + 32;
+    const g = ((key >> 2) & 3) * 64 + 32;
+    const b = (key & 3) * 64 + 32;
+    const luminance = 0.299 * r + 0.587 * g + 0.114 * b;
+    // Near-white / near-black chips say nothing useful to the image model.
+    if (luminance > 235 || luminance < 25) continue;
+    const hex =
+      "#" + [r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("");
+    if (!out.includes(hex)) out.push(hex);
+    if (out.length >= maxColors) break;
+  }
+  return out;
+}
+
+/**
  * Draw the selected-language text over the generated background with a REAL
- * font (Nirmala UI etc.). Returns a composited PNG data URL, or null on
- * failure (caller then shows the raw image — honest fallback).
+ * font (Nirmala UI etc.), then finish the optional portrait into a circular
+ * face chip (top-left, outside the text band). Returns a composited PNG data
+ * URL, or null on failure (caller then shows the raw image — honest fallback).
  */
 async function composeThumbnail(
   src: string,
   text: string,
   lang: string,
+  portraitUrl?: string | null,
 ): Promise<string | null> {
   try {
     const img = await loadImageElement(src);
@@ -182,18 +246,56 @@ async function composeThumbnail(
       THUMB_W * 0.9,
       family,
     );
-    ctx.font = font;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(0,0,0,0.9)";
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = "#ffffff";
-    const centerY = THUMB_H - band * 0.62;
-    const firstY = centerY - ((lines.length - 1) * lineHeight) / 2;
-    lines.forEach((ln, i) => {
-      ctx.fillText(ln, THUMB_W / 2, firstY + i * lineHeight);
-    });
+    if (lines.length) {
+      ctx.font = font;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = "rgba(0,0,0,0.9)";
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = "#ffffff";
+      const centerY = THUMB_H - band * 0.62;
+      const firstY = centerY - ((lines.length - 1) * lineHeight) / 2;
+      lines.forEach((ln, i) => {
+        ctx.fillText(ln, THUMB_W / 2, firstY + i * lineHeight);
+      });
+      ctx.shadowColor = "transparent";
+    }
+
+    // Portrait → circular face chip in the top-left corner.
+    if (portraitUrl) {
+      const p = await loadImageElement(portraitUrl);
+      const radius = Math.round(THUMB_H * 0.2);
+      const pad = Math.round(THUMB_H * 0.05);
+      const cx = pad + radius;
+      const cy = pad + radius;
+      // Soft shadow under the chip.
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = 14;
+      ctx.shadowOffsetY = 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fill();
+      ctx.restore();
+      // Circular crop of the portrait (cover-fit inside the circle).
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.clip();
+      const ps = Math.max((radius * 2) / p.width, (radius * 2) / p.height);
+      const pw = p.width * ps;
+      const ph = p.height * ps;
+      ctx.drawImage(p, cx - pw / 2, cy - ph / 2, pw, ph);
+      ctx.restore();
+      // Dark ring so the chip pops at small preview sizes.
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(4, Math.round(THUMB_H * 0.012));
+      ctx.strokeStyle = "rgba(0,0,0,0.85)";
+      ctx.stroke();
+    }
 
     return canvas.toDataURL("image/png");
   } catch {
@@ -214,14 +316,20 @@ export function ThumbnailClient() {
 
   const concept = useGenerator("/api/thumbnail");
 
-  const [imageLoading, setImageLoading] = React.useState(false);
+  const [variations, setVariations] = React.useState(3);
+  const [referenceUrl, setReferenceUrl] = React.useState<string | null>(null);
+  const [referenceName, setReferenceName] = React.useState("");
+  const [palette, setPalette] = React.useState<string[]>([]);
+  const [paletteNote, setPaletteNote] = React.useState<string | null>(null);
+  const [portraitUrl, setPortraitUrl] = React.useState<string | null>(null);
+  const [portraitName, setPortraitName] = React.useState("");
+
+  const [variantsLoading, setVariantsLoading] = React.useState(false);
   const [retrying, setRetrying] = React.useState(false);
   const [elapsed, setElapsed] = React.useState(0);
   const [conceptElapsed, setConceptElapsed] = React.useState(0);
-  const [image, setImage] = React.useState<ImageResult | null>(null);
-  const [imageError, setImageError] = React.useState<string | null>(null);
-  const [composeNote, setComposeNote] = React.useState<string | null>(null);
-  const [downloading, setDownloading] = React.useState(false);
+  const [variants, setVariants] = React.useState<ThumbVariant[]>([]);
+  const [downloadingIdx, setDownloadingIdx] = React.useState<number | null>(null);
 
   const conceptResult = concept.result as GeneratorResult | null;
   const imagePromptBlock: OutputBlock | undefined = conceptResult?.blocks?.find(
@@ -236,20 +344,20 @@ export function ThumbnailClient() {
     return () => clearInterval(id);
   }, [concept.loading]);
 
-  // Live elapsed-seconds clock while the image generates.
+  // Live elapsed-seconds clock while the variants generate.
   React.useEffect(() => {
-    if (!imageLoading) return;
+    if (!variantsLoading) return;
     const id = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(id);
-  }, [imageLoading]);
+  }, [variantsLoading]);
 
   // Auto-fill the on-image headline from the concept's text suggestion.
   // Done in the event handler (not an effect) to respect the purity rules —
   // the user's own edits are never overwritten because we only fill when empty.
   const generateConcept = async () => {
-    setImage(null);
-    setImageError(null);
-    setComposeNote(null);
+    setVariants([]);
+    setPalette([]);
+    setVariantsLoading(false);
     setConceptElapsed(0);
     const data = await concept.run({
       language,
@@ -280,16 +388,117 @@ export function ThumbnailClient() {
     }
   };
 
-  const generateImage = async () => {
+  const pickReference = (file: File | null) => {
+    setReferenceUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+    setReferenceName(file?.name ?? "");
+    setPalette([]);
+    setPaletteNote(null);
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setReferenceUrl(url);
+    loadImageElement(url)
+      .then((img) => {
+        const colors = extractPalette(img);
+        if (colors.length) setPalette(colors);
+        else setPaletteNote("Could not pick dominant colors from that image — generated freely.");
+      })
+      .catch(() => {
+        setPaletteNote("Could not read that image — generated freely.");
+      });
+  };
+
+  const pickPortrait = (file: File | null) => {
+    setPortraitUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return null;
+    });
+    setPortraitName(file?.name ?? "");
+    if (!file) return;
+    setPortraitUrl(URL.createObjectURL(file));
+  };
+
+  /** One thumbnail variant: new seed + composition angle, then text/portrait. */
+  const fetchVariant = async (
+    prompt: string,
+    overlay: string,
+    portrait: string | null,
+    seed: number,
+  ): Promise<ThumbVariant> => {
+    let lastError = "Image generation failed. Please try again.";
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch("/api/ai/image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            style: "thumbnail",
+            ratio: "16:9",
+            seed,
+          }),
+        });
+        const data = (await res.json()) as ImageResult;
+        if (data.ok && (data.url ?? data.dataUrl)) {
+          const src = (data.url ?? data.dataUrl) as string;
+          if (overlay || portrait) {
+            const composed = await composeThumbnail(
+              src,
+              overlay,
+              language,
+              portrait,
+            );
+            if (composed) {
+              return {
+                ok: true,
+                seed: data.seed ?? seed,
+                url: data.url,
+                dataUrl: composed,
+                composed: true,
+              };
+            }
+            return {
+              ok: true,
+              seed: data.seed ?? seed,
+              url: data.url,
+              error:
+                "Text / portrait could not be drawn over this image — showing the raw version.",
+            };
+          }
+          return {
+            ok: true,
+            seed: data.seed ?? seed,
+            url: data.url,
+            dataUrl: data.dataUrl,
+            composed: false,
+          };
+        }
+        lastError = data.error ?? lastError;
+        const transient =
+          /busy|too many|429|503|5\d\d|empty result|try again|timed out/i.test(
+            lastError,
+          );
+        if (!transient || attempt === 2) break;
+        setRetrying(true);
+        await new Promise((r) => setTimeout(r, 1500));
+      } catch {
+        break;
+      }
+    }
+    return { ok: false, seed, error: lastError };
+  };
+
+  const generateVariants = async () => {
     if (!imagePromptBlock?.text) return;
-    setImageLoading(true);
-    setImageError(null);
-    setImage(null);
-    setComposeNote(null);
+    setVariantsLoading(true);
+    setVariants([]);
     setRetrying(false);
     setElapsed(0);
     const startedAt = Date.now();
     const overlay = thumbText.trim();
+    const portrait = portraitUrl;
 
     // The AI paints ONLY the background — asking image models to draw Indian
     // scripts gives English or gibberish, so we never let it write the text.
@@ -297,90 +506,52 @@ export function ThumbnailClient() {
       ? `${imagePromptBlock.text}, no text, no words, no letters, clean empty space at the bottom for a headline`
       : imagePromptBlock.text;
 
-    let lastError = "Image generation failed. Please try again.";
+    // Reference style → palette steering (prompt-level, honest).
+    const colorSuffix = palette.length
+      ? ` Dominant color palette: ${palette.join(", ")} — use exactly these colors as the main palette.`
+      : "";
 
-    // Reality check: generations can take 30s–90s and the free tier can hiccup,
-    // so retry once on transient failures instead of dying on the first one.
-    try {
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          const res = await fetch("/api/ai/image", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: basePrompt,
-              style: "thumbnail",
-              ratio: "16:9",
-            }),
-          });
-          const data = (await res.json()) as ImageResult;
-          if (data.ok) {
-            let display: ImageResult = data;
-            if (overlay && (data.url ?? data.dataUrl)) {
-              const composed = await composeThumbnail(
-                (data.url ?? data.dataUrl) as string,
-                overlay,
-                language,
-              );
-              if (composed) {
-                display = { ...data, dataUrl: composed, composed: true };
-              } else {
-                setComposeNote(
-                  "Could not draw the text over this image — showing the raw image instead.",
-                );
-              }
-            }
-            setElapsed(Math.max(1, Math.round((Date.now() - startedAt) / 1000)));
-            setImage(display);
-            return;
-          }
-          lastError = data.error ?? lastError;
-          const transient =
-            /busy|too many|429|503|5\d\d|empty result|try again|timed out/i.test(
-              lastError,
-            );
-          if (!transient || attempt === 2) break;
-          setRetrying(true);
-          await new Promise((r) => setTimeout(r, 1500));
-        } catch {
-          break;
-        }
-      }
-      setImageError(lastError);
-    } finally {
-      setRetrying(false);
-      setImageLoading(false);
-    }
+    const jobs = Array.from({ length: variations }, (_, i) => {
+      const seed = Math.floor(Math.random() * 2 ** 31);
+      const twist = TWISTS[i % TWISTS.length] ?? "";
+      const prompt = `${basePrompt}${colorSuffix}, ${twist}`.slice(0, 1000);
+      return fetchVariant(prompt, overlay, portrait, seed);
+    });
+
+    const results = await Promise.all(jobs);
+    setElapsed(Math.max(1, Math.round((Date.now() - startedAt) / 1000)));
+    setVariants(results);
+    setVariantsLoading(false);
+    setRetrying(false);
   };
 
-  const imgUrl = image?.dataUrl ?? image?.url ?? null;
-
-  const download = async () => {
-    if (!imgUrl || !image) return;
+  const downloadVariant = async (v: ThumbVariant, idx: number) => {
+    const src = v.dataUrl ?? v.url;
+    if (!src) return;
     try {
-      setDownloading(true);
-      if (image.dataUrl) {
+      setDownloadingIdx(idx);
+      if (v.dataUrl) {
         const a = document.createElement("a");
-        a.href = image.dataUrl;
-        a.download = `balu-thumbnail-${Date.now()}.png`;
+        a.href = v.dataUrl;
+        a.download = `balu-thumbnail-${v.seed ?? `v${idx + 1}`}.png`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-      } else if (image.url) {
-        const res = await fetch(image.url);
+      } else if (v.url) {
+        const res = await fetch(v.url);
         const blob = await res.blob();
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `balu-thumbnail-${Date.now()}.png`;
+        a.download = `balu-thumbnail-${v.seed ?? `v${idx + 1}`}.png`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(a.href);
       }
     } catch {
-      window.open(imgUrl, "_blank");
+      window.open(src, "_blank");
     } finally {
-      setDownloading(false);
+      setDownloadingIdx(null);
     }
   };
 
@@ -392,7 +563,7 @@ export function ThumbnailClient() {
     <div>
       <PageHeader
         title="Thumbnail Generator"
-        subtitle="Get a pro thumbnail concept — layout, colors, text rules — then generate the 16:9 image with real text drawn in your language."
+        subtitle="Get a pro thumbnail concept — layout, colors, text rules — then generate A/B variations with real text in your language, your portrait, and a reference palette."
         badge={<Badge variant="secondary">1280×720 · 16:9</Badge>}
       />
 
@@ -501,67 +672,223 @@ export function ThumbnailClient() {
         <div className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <ImagePlus className="size-5 text-primary" />
-            <h2 className="text-lg font-semibold">Generate the thumbnail image</h2>
+            <h2 className="text-lg font-semibold">Generate thumbnail variations</h2>
           </div>
           <Card className="border-border">
             <CardContent className="p-5">
               <p className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
                 <span className="font-semibold text-foreground">Image prompt: </span>
                 {imagePromptBlock.text}
+                {palette.length
+                  ? ` Dominant color palette: ${palette.join(", ")}.`
+                  : ""}
               </p>
-              <Button onClick={generateImage} loading={imageLoading}>
-                <ImagePlus /> Generate 16:9 thumbnail image
-              </Button>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                <Field id="th-variations" label="Variations (A/B test)">
+                  <Select
+                    id="th-variations"
+                    value={String(variations)}
+                    onChange={(e) => setVariations(Number(e.target.value))}
+                    options={["2", "3", "4"]}
+                  />
+                </Field>
+                <Field
+                  id="th-ref"
+                  label="Reference style (optional)"
+                  hint="Its dominant colors steer the prompt — palette cloning, not a 1:1 copy."
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => document.getElementById("th-ref-input")?.click()}
+                  >
+                    {referenceName ? "Replace reference" : "Choose reference image"}
+                  </Button>
+                  <input
+                    id="th-ref-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => pickReference(e.target.files?.[0] ?? null)}
+                  />
+                </Field>
+                <Field
+                  id="th-portrait"
+                  label="Your portrait (optional)"
+                  hint="Finished into a circular face chip in the top-left corner — best as a close-up headshot."
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => document.getElementById("th-portrait-input")?.click()}
+                  >
+                    {portraitName ? "Replace portrait" : "Choose your photo"}
+                  </Button>
+                  <input
+                    id="th-portrait-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => pickPortrait(e.target.files?.[0] ?? null)}
+                  />
+                </Field>
+              </div>
+
+              {(referenceUrl || portraitUrl) && !variantsLoading ? (
+                <div className="mt-4 flex flex-wrap items-end gap-4">
+                  {referenceUrl ? (
+                    <div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={referenceUrl}
+                        alt="Reference style"
+                        className="h-16 w-28 rounded-md border border-border object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => pickReference(null)}
+                        className="mt-1 block text-[11px] text-muted-foreground underline hover:text-foreground"
+                      >
+                        remove reference
+                      </button>
+                    </div>
+                  ) : null}
+                  {portraitUrl ? (
+                    <div>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={portraitUrl}
+                        alt="Portrait"
+                        className="size-16 rounded-full border border-border object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => pickPortrait(null)}
+                        className="mt-1 block text-[11px] text-muted-foreground underline hover:text-foreground"
+                      >
+                        remove portrait
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {palette.length ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Palette:</span>
+                  {palette.map((hex) => (
+                    <span
+                      key={hex}
+                      className="flex items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      <span
+                        className="size-3 rounded-full"
+                        style={{ backgroundColor: hex }}
+                      />
+                      {hex}
+                    </span>
+                  ))}
+                  <span className="text-[11px] text-muted-foreground">
+                    — added to every variant prompt.
+                  </span>
+                </div>
+              ) : null}
+
+              {paletteNote ? (
+                <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  {paletteNote}
+                </p>
+              ) : null}
+
+              <div className="mt-5 flex flex-wrap items-center gap-2">
+                <Button onClick={generateVariants} loading={variantsLoading}>
+                  <ImagePlus />
+                  {variantsLoading
+                    ? `Creating ${variations} thumbnails…`
+                    : `Generate ${variations} thumbnail${variations > 1 ? "s" : ""}`}
+                </Button>
+                {variantsLoading ? (
+                  <span className="text-xs text-muted-foreground">
+                    {retrying
+                      ? "image service busy — retrying… "
+                      : `… ${elapsed}s — the free image service can be slow with several variants.`}
+                  </span>
+                ) : null}
+              </div>
               <p className="mt-3 text-xs text-muted-foreground">
-                Free image generation (Pollinations.ai) — needs internet.{" "}
-                {thumbText.trim()
-                  ? `The AI paints only the background; your "${thumbText.trim()}" is then drawn on top with a real font in ${langLabel} — crisp in every script.`
-                  : "The result is a starting point; polish it in Photoshop / Canva before uploading."}
+                Each variant uses a different seed and composition angle, so you
+                can A/B test styles. {thumbText.trim()
+                  ? `The AI paints only the background; your "${thumbText.trim()}" is drawn on top with a real font in ${langLabel}, and your portrait is cut into a circular chip — all done in the browser.`
+                  : "The AI paints only the background; add text or a portrait for the finished look, and polish in Photoshop / Canva before uploading."}
               </p>
             </CardContent>
           </Card>
         </div>
       ) : null}
 
-      {imageError ? <ErrorState message={imageError} /> : null}
-      {composeNote ? (
-        <p className="mb-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-          {composeNote}
-        </p>
-      ) : null}
-      {imageLoading ? (
-        <LoadingState
-          message={
-            retrying
-              ? "The image service was busy — retrying…"
-              : `Creating thumbnail image… ${elapsed}s`
-          }
-        />
-      ) : null}
+      {variantsLoading ? <LoadingState message="Creating thumbnail variations…" /> : null}
 
-      {imgUrl ? (
-        <Card className="overflow-hidden border-border">
-          <CardContent className="p-0">
-            <div className="bg-muted/40">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imgUrl}
-                alt="Thumbnail preview"
-                className="aspect-video w-full object-contain"
-              />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 p-4">
-              <span className="text-xs text-muted-foreground">
-                {image?.seed !== undefined ? `Seed: ${image.seed}` : ""} · 16:9
-                {image?.composed ? ` · text in ${langLabel}` : ""}
-                {elapsed > 0 ? ` · generated in ${elapsed}s` : ""}
-              </span>
-              <Button variant="outline" size="sm" onClick={download} disabled={downloading}>
-                <Download /> {downloading ? "Downloading…" : "Download image"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+      {variants.length ? (
+        <div className="mb-6 grid gap-4 sm:grid-cols-2">
+          {variants.map((v, i) => {
+            const src = v.dataUrl ?? v.url;
+            return (
+              <Card key={v.seed ?? i} className="overflow-hidden border-border">
+                <CardContent className="p-0">
+                  {v.ok && src ? (
+                    <>
+                      <div className="bg-muted/40">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={src}
+                          alt={`Thumbnail variant ${i + 1}`}
+                          className="aspect-video w-full object-contain"
+                        />
+                      </div>
+                      <div className="p-4">
+                        {v.error ? (
+                          <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                            {v.error}
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs text-muted-foreground">
+                            Variant {i + 1}
+                            {v.seed !== undefined ? ` · Seed ${v.seed}` : ""} ·
+                            16:9
+                            {v.composed
+                              ? ` · ${langLabel} text${portraitUrl ? " + portrait" : ""}`
+                              : ""}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadVariant(v, i)}
+                            disabled={downloadingIdx === i}
+                          >
+                            <Download />
+                            {downloadingIdx === i ? "Downloading…" : "Download image"}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-4">
+                      <p className="text-xs text-destructive">
+                        {v.error ?? "This variant failed. Try again."}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       ) : null}
     </div>
   );

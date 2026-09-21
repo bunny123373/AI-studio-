@@ -254,7 +254,20 @@ def main() -> None:
             condition_on_previous_text=True,
             beam_size=5,
         )
-        segments = list(segments_iter)
+        total_dur = float(getattr(info, "duration", 0) or 0)
+        # Stream REAL progress while segments decode (the iterator yields as
+        # Whisper advances through the audio). Each event is one JSON line on
+        # stderr — stdout stays reserved for the final JSON document.
+        segments = []
+        for segment in segments_iter:
+            segments.append(segment)
+            seg_end = float(getattr(segment, "end", 0) or 0)
+            if total_dur > 0:
+                pct = min(100.0, round(seg_end / total_dur * 100, 1))
+                sys.stderr.write(
+                    json.dumps({"evt": "progress", "pct": pct}) + "\n"
+                )
+                sys.stderr.flush()
     except Exception as exc:
         err(f"Transcription failed: {exc}")
 
