@@ -16,11 +16,22 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { Field } from "@/components/common/field";
 import { LoadingState } from "@/components/common/loading-state";
 
 interface Status {
   ok?: boolean;
   text?: { id: string; label: string; configured: boolean };
+  textOptions?: Array<{
+    id: string;
+    label: string;
+    configured: boolean;
+    model: string;
+  }>;
+  runtime?: { provider: string | null; model: string | null };
   image?: { id: string; label: string; configured: boolean };
   whisper?: { configured: boolean; model: string; note?: string };
   ffmpeg?: { found: boolean };
@@ -69,6 +80,11 @@ const CODE = "font-mono text-[11px] text-primary";
 export function SettingsClient() {
   const [status, setStatus] = React.useState<Status | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [providerSel, setProviderSel] = React.useState("");
+  const [modelSel, setModelSel] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [applyMsg, setApplyMsg] = React.useState<string | null>(null);
+  const [applyErr, setApplyErr] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     fetch("/api/settings/status")
@@ -76,6 +92,96 @@ export function SettingsClient() {
       .then((d: Status) => setStatus(d))
       .catch(() => setError("Could not load provider status."));
   }, []);
+
+  // Effective values: whatever the user picked, else the runtime override,
+  // else the .env.local default. Derived at render — no state syncing.
+  const defaultProvider =
+    status?.runtime?.provider ??
+    (status?.text && (status.text.id === "gemini" || status.text.id === "openai")
+      ? status.text.id
+      : status?.textOptions?.[0]?.id ?? "");
+  const defaultModel =
+    status?.runtime?.model ??
+    status?.textOptions?.find((o) => o.id === defaultProvider)?.model ??
+    "";
+  const effectiveProvider = providerSel || defaultProvider;
+  const effectiveModel = modelSel || defaultModel;
+
+  const switchProvider = (id: string) => {
+    setProviderSel(id);
+    setModelSel(status?.textOptions?.find((o) => o.id === id)?.model ?? "");
+  };
+
+  const refreshStatus = async () => {
+    try {
+      const d = (await (await fetch("/api/settings/status")).json()) as Status;
+      setStatus(d);
+      return d;
+    } catch {
+      return null;
+    }
+  };
+
+  const persistProvider = async (
+    provider: string | null,
+    model: string | null,
+  ) => {
+    setSaving(true);
+    setApplyErr(null);
+    setApplyMsg(null);
+    try {
+      const res = await fetch("/api/settings/provider", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, model }),
+      });
+      const d = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        runtime?: { provider: string | null; model: string | null };
+      };
+      if (!res.ok || !d.ok) {
+        setApplyErr(d.error ?? "Could not apply the selection.");
+        return false;
+      }
+      const fresh = await refreshStatus();
+      if (fresh?.runtime?.provider && fresh?.runtime?.model) {
+        setProviderSel(fresh.runtime.provider);
+        setModelSel(fresh.runtime.model);
+      }
+      setApplyMsg(
+        d.runtime?.provider
+          ? `Applied: ${d.runtime.provider} — ${d.runtime.model ?? "default model"}.`
+          : "Reset to the .env.local configuration.",
+      );
+      return true;
+    } catch {
+      setApplyErr("Network error — could not save.");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const applyProvider = () =>
+    persistProvider(effectiveProvider || null, effectiveModel || null);
+  const resetProvider = () => {
+    setProviderSel("");
+    setModelSel("");
+    return persistProvider(null, null);
+  };
+
+  // Labelled options keep the <value> as the bare provider id.
+  const selectOptions =
+    status?.textOptions?.map((o) => ({
+      value: o.id,
+      label: o.configured ? o.label : `${o.label} (no key set)`,
+    })) ?? [];
+  const providerHint = status?.textOptions?.find(
+    (o) => o.id === effectiveProvider,
+  )?.configured
+    ? "Configured — keys are set in .env.local."
+    : "No key set for this provider — generation falls back to the free template engine.";
 
   const statusPill = (configured: boolean) => (
     <Badge variant={configured ? "success" : "secondary"}>
@@ -87,7 +193,7 @@ export function SettingsClient() {
     <div>
       <PageHeader
         title="Settings"
-        subtitle="See which AI providers are active. Everything is configured through environment variables — never in the browser."
+        subtitle="See which AI providers are active, and switch provider & model at runtime — keys still live only in environment variables."
         badge={<Badge variant="secondary">No secrets here</Badge>}
       />
 
@@ -198,6 +304,73 @@ export function SettingsClient() {
               <Badge variant="success" className="align-middle">AI provider</Badge>. If the
               provider fails it falls back to the template.
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Switch provider &amp; model (runtime)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Pick which configured provider is active and which model it uses —
+              no editing files, works here in the browser. Keys stay in{" "}
+              <code className={CODE}>.env.local</code> only.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field id="st-provider" label="Provider" hint={providerHint}>
+                <Select
+                  id="st-provider"
+                  value={effectiveProvider}
+                  onChange={(e) => switchProvider(e.target.value)}
+                  options={selectOptions}
+                />
+              </Field>
+              <Field
+                id="st-model"
+                label="Model"
+                hint="Model name on that provider, e.g. gemini-3.6-flash or gpt-4o-mini."
+              >
+                <Input
+                  id="st-model"
+                  value={effectiveModel}
+                  onChange={(e) => setModelSel(e.target.value)}
+                  placeholder="e.g. gemini-3.6-flash"
+                  maxLength={200}
+                />
+              </Field>
+            </div>
+            {applyErr ? (
+              <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {applyErr}
+              </p>
+            ) : null}
+            {applyMsg ? (
+              <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+                {applyMsg}
+              </p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={applyProvider} loading={saving} size="sm">
+                Apply
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={resetProvider}
+                disabled={saving || !status?.runtime?.provider}
+              >
+                Reset to .env.local
+              </Button>
+            </div>
+            <p className="text-xs">
+              The choice is kept on the server in memory — it survives page
+              refreshes on a single always-on host, resets when the server
+              restarts, and on serverless hosting (Vercel) it is per-instance,
+              so set the env vars there too.
+            </p>
           </CardContent>
         </Card>
 

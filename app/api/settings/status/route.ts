@@ -2,6 +2,7 @@ import { json } from "@/lib/api/generate-route";
 import { textProviderConfig } from "@/lib/ai/text";
 import { getImageProvider } from "@/lib/ai/image";
 import { env } from "@/lib/ai/env";
+import { canSelectTextProvider, getRuntimeText } from "@/lib/ai/config";
 import {
   isDiarizationReady,
   isFasterWhisperAvailable,
@@ -23,6 +24,22 @@ export async function GET() {
   return json({
     ok: true,
     text: text ?? { id: "none", configured: false },
+    // Selectable text providers for the runtime switcher (keys stay in env).
+    textOptions: [
+      {
+        id: "gemini",
+        label: "Google Gemini",
+        configured: canSelectTextProvider("gemini"),
+        model: env.geminiModel,
+      },
+      {
+        id: "openai",
+        label: "OpenAI-compatible",
+        configured: canSelectTextProvider("openai"),
+        model: env.openaiModel,
+      },
+    ],
+    runtime: getRuntimeText(),
     image: { id: image.id, label: image.label, configured: image.configured },
     whisper: {
       configured: whisper,

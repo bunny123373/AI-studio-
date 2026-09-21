@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎬 BALU AI STUDIO
+# ˙✦ BALU AI STUDIO
 
 ### Create More. For Free.
 
@@ -192,6 +192,13 @@ Anything OpenAI-compatible works (Ollama, Groq, OpenRouter, LM Studio, vLLM,
 DeepSeek…) — the provider is a plain `fetch` to `OPENAI_BASE_URL/chat/completions`.
 If a provider fails at runtime the app **falls back to the template engine**, so
 output always arrives.
+
+Besides the env default (`AI_TEXT_PROVIDER`), Settings → *Switch provider &
+model (runtime)* lets you change the active provider and model in the browser
+(no file edits): it sets an **in-memory server override** that wins over the env
+default until the server restarts. On serverless hosts (Vercel) the override is
+per-instance, so set the real env vars there too. Keys themselves still only
+ever come from environment variables — the picker never stores or sends them.
 
 | Variable | Default | Options / purpose |
 | --- | --- | --- |

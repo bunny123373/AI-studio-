@@ -1,4 +1,5 @@
 import { env } from "@/lib/ai/env";
+import { modelFor } from "@/lib/ai/config";
 import type { TextProvider } from "@/lib/ai/types";
 
 /** Google Gemini text provider (free tier supported). */
@@ -14,7 +15,7 @@ export const geminiProvider: TextProvider = {
     const timer = setTimeout(() => controller.abort(), 90_000);
     try {
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${env.geminiModel}:generateContent?key=${env.geminiApiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelFor("gemini")}:generateContent?key=${env.geminiApiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -1,4 +1,5 @@
 import { env } from "@/lib/ai/env";
+import { modelFor } from "@/lib/ai/config";
 import type { TextProvider } from "@/lib/ai/types";
 
 /** Basic OpenAI-compatible chat provider (works with any OpenAI-compatible
@@ -23,7 +24,7 @@ export const openaiProvider: TextProvider = {
           ...(env.openaiApiKey ? { Authorization: `Bearer ${env.openaiApiKey}` } : {}),
         },
         body: JSON.stringify({
-          model: env.openaiModel,
+          model: modelFor("openai"),
           temperature: 0.8,
           messages: [
             ...(opts?.system

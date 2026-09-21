@@ -1,14 +1,17 @@
 import { env } from "@/lib/ai/env";
+import { getRuntimeText } from "@/lib/ai/config";
 import { openaiProvider } from "@/lib/ai/text/openai";
 import { geminiProvider } from "@/lib/ai/text/gemini";
 import type { TextProvider } from "@/lib/ai/types";
 
 /**
- * Returns the configured text provider.
+ * Returns the active text provider — the runtime switch (Settings UI) wins
+ * over the `.env.local` default.
  * "template" is always the fallback — generation never requires a paid API.
  */
 export function getTextProvider(): TextProvider {
-  switch (env.textProvider) {
+  const rt = getRuntimeText();
+  switch (rt.provider ?? env.textProvider) {
     case "openai":
       return openaiProvider;
     case "gemini":
