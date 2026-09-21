@@ -75,7 +75,8 @@ in seconds when you want them.
 Upload an MP3, WAV, M4A or MP4 — or paste a **YouTube URL** — and get a
 **real, timestamped transcript** powered by
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), running
-entirely on your machine.
+entirely on the server that runs the app — your machine, a VPS, or Render.
+Never a third-party speech API.
 
 - **Speech** and **Song** modes — song mode uses word-level timestamps
 - **Sentence-aware cues** — whisper's fragmented segments are merged into
@@ -217,7 +218,7 @@ variables — the picker never stores or sends them.
 | `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Nano Banana image model (`gemini-2.5-flash-image` for first-gen) |
 | `IMAGE_PROVIDER` | `gemini` | `gemini` (default) · `huggingface` · `pollinations` (always-free) · `local` · `none` |
 | `HUGGINGFACE_API_KEY` | — | Free HF token (“Inference Providers” permission) — enables the Hugging Face image engine |
-| `HUGGINGFACE_IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | HF text-to-image model id |
+| `HUGGINGFACE_IMAGE_MODEL` | `stabilityai/stable-diffusion-3-medium-diffusers` | HF text-to-image model id (FLUX.1-schnell now answers 410 Gone on hf-inference) |
 | `HUGGINGFACE_BASE_URL` | `https://router.huggingface.co/hf-inference/models` | HF Inference Providers router (a dedicated Inference Endpoint URL also works) |
 | `POLLINATIONS_API_KEY` | *(empty)* | Optional free Pollinations key (`sk_…` from enter.pollinations.ai — reliable endpoint; without it the keyless free tier is used) |
 | `LOCAL_SD_URL` | `http://127.0.0.1:7860` | Local Stable Diffusion (AUTOMATIC1111 API) |
@@ -287,34 +288,75 @@ scripts/
 
 ## ☁️ Deployment
 
-Runs anywhere Next.js runs — Vercel, Node servers, Docker.
+Runs anywhere Next.js runs — Vercel, Render, any Node host, Docker.
 
 - Set the same env vars in your host dashboard (Vercel: *Settings → Environment
   Variables*). Secrets stay server-side.
-- Audio → SRT keeps job state **in memory** and shells out to Python + FFmpeg on
-  the same machine — prefer a long-running Node host or a dedicated worker, or
-  swap in the Redis job store. `MAX_AUDIO_MB`, `WHISPER_MODEL` and
-  `AUDIO_WORK_DIR` give you the knobs to stay within host limits.
+- Audio → SRT shells out to Python + FFmpeg on the same machine, so it only runs
+  on a host that has them. `MAX_AUDIO_MB`, `WHISPER_MODEL` and `AUDIO_WORK_DIR`
+  are the knobs for staying within host limits. Job state is kept in memory.
 - TTS is not bundled; for testing, synthesize speech (e.g. `edge-tts`) and feed
   it straight into Audio → SRT.
+
+### Where does Audio → SRT actually work?
+
+| Host | Audio → SRT | Why |
+| --- | --- | --- |
+| Your machine / a VPS | ✅ | Python + FFmpeg + yt-dlp installed locally |
+| **Render** (Docker) | ✅ | the repo's `Dockerfile` installs them for you |
+| Vercel / Netlify / Lambda | ❌ | serverless: no Python, no long-lived process |
+
+The UI reads `/api/audio/health` and says honestly which case you are in — it
+never fakes a transcript.
+
+### Deploying to Render (full app, Audio → SRT included)
+
+The repo ships a `Dockerfile` (Node + Python + faster-whisper + FFmpeg + yt-dlp)
+and a `render.yaml` blueprint, so the whole studio — including long uploads and
+YouTube links — runs on a public URL with **no third-party speech API**.
+
+1. Push the repo to GitHub.
+2. Render → **New → Blueprint** → pick the repo (Render reads `render.yaml`).
+3. Fill in the `sync: false` secrets it asks for — all optional, the audio
+   pipeline itself needs no keys: `GEMINI_API_KEY`, `HUGGINGFACE_API_KEY`,
+   `POLLINATIONS_API_KEY`, `PYANNOTE_AUTH_TOKEN`.
+4. Deploy. Render builds the Dockerfile and serves the app on your
+   `*.onrender.com` URL.
+
+Notes: the free instance has 512 MB RAM, so `WHISPER_MODEL=base` is the
+comfortable default (use `tiny` if a job gets OOM-killed; move to a larger
+instance for `small`/`medium`/`large-v3`). Mount a Render **disk** at
+`/var/hf-cache` to keep the downloaded model between restarts — otherwise it is
+re-downloaded after each spin-down.
+
+The same image runs locally:
+
+```bash
+docker build -t balu-ai-studio .
+docker run --rm -p 3000:3000 --env-file .env.local balu-ai-studio
+```
 
 ### Deploying to Vercel (free)
 
 The `vercel.json` pins every API route to `maxDuration: 60` (Hobby-plan cap).
 All image/text/thumbnail tools work — **Audio → SRT does not**, because
-serverless hosts have no Python; the UI detects this from `/api/audio/health`
-and the upload routes return a clear 503 instead of a doomed job. Keep that
-tool on your local machine or a VPS.
+serverless hosts have no Python; the UI detects this from `/api/audio/health`,
+shows a "deploy on Render" notice, and the upload routes return a clear 503
+instead of a doomed job. Use the Render blueprint above (or your local machine /
+a VPS) for transcription.
 
 Environment variables to add in Vercel (*Settings → Environment Variables*):
 
 | Variable | Value | Purpose |
 | --- | --- | --- |
 | `AI_TEXT_PROVIDER` | `gemini` | text AI for concepts/scripts/translation |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | text model used by the Gemini provider |
 | `GEMINI_API_KEY` | your key | required for text AI (and the default Gemini image engine) — set alongside `AI_TEXT_PROVIDER=gemini` |
 | `IMAGE_PROVIDER` | `gemini` | image generation (Nano Banana; **falls back to free Pollinations** when the account has no image quota) |
+| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Gemini image model to call — needs billing enabled, the free tier has **0** image quota |
+| `HUGGINGFACE_API_KEY` | `hf_…` | optional Hugging Face image engine (`HUGGINGFACE_IMAGE_MODEL`, default `stabilityai/stable-diffusion-3-medium-diffusers`) |
 | `POLLINATIONS_API_KEY` | your key | reliable `gen.pollinations.ai` fallback endpoint |
-| (optional) | `OPENAI_API_KEY`, `GEMINI_IMAGE_MODEL`, `HUGGINGFACE_API_KEY`, … | set to taste, see Configuration |
+| (optional) | `OPENAI_API_KEY`, `PYANNOTE_AUTH_TOKEN`, … | set to taste, see Configuration |
 
 Deploy: push to GitHub → *vercel.com/new* → import the repo → add env vars →
 Deploy. Or CLI: `npx vercel --prod` (logs in via browser once).

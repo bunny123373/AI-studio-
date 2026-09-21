@@ -1,0 +1,21 @@
+# Keep the image small and never bake secrets into it.
+node_modules
+.next
+.git
+.gitignore
+
+# Secrets — always passed at runtime (Render env vars / --env-file).
+.env
+.env.local
+.env.*.local
+
+# Local scratch / build leftovers
+tmp-audio
+bin
+**/__pycache__
+scripts/__pycache__
+
+# Docs & tooling not needed at runtime
+*.md
+.vscode
+.idea

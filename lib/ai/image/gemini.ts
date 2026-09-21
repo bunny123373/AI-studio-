@@ -89,7 +89,10 @@ export const geminiImageProvider: ImageProvider = {
             ok: false,
             provider: this.id,
             error:
-              "Gemini image generation has no quota on this account — image models are billed separately from text on the Gemini API.",
+              "Gemini's free tier includes no image generations (limit 0) — image models like " +
+              `${model} require billing enabled on the Gemini API key. Enable billing at ` +
+              "ai.google.dev (or pick the free Pollinations engine). Image models are metered " +
+              "separately from text.",
             seed: input.seed,
           };
         }

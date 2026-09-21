@@ -57,9 +57,9 @@ export async function POST(req: Request) {
     return json({
       ok: false,
       error:
-        "yt-dlp was not found. YouTube transcription needs it — install with:\n" +
-        "  pip install yt-dlp    (or: winget install yt-dlp)\n" +
-        "then restart the server. File uploads work without it.",
+        "yt-dlp was not found on this server, so it cannot download YouTube " +
+        "audio. Install it (pip install yt-dlp) and restart — or deploy the " +
+        "app on Render with this repo's Dockerfile, which includes it.",
     }, 503);
   }
 

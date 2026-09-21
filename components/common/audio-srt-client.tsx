@@ -224,6 +224,8 @@ type Format = (typeof FORMATS)[number]["value"];
 type Layout = (typeof LAYOUTS)[number]["value"];
 
 interface Health {
+  localReady?: boolean;
+  serverless?: boolean;
   ffmpeg?: { found: boolean };
   python?: { found: boolean };
   fasterWhisper?: { found: boolean };
@@ -348,6 +350,12 @@ export function AudioSrtClient() {
 
   const diarizationReady = Boolean(health?.diarization?.ready);
   const translationConfigured = Boolean(health?.translation?.configured);
+  /** The local engine (Python + faster-whisper) can actually run on this host. */
+  const localReady = Boolean(
+    health?.localReady ?? (health?.python?.found && health?.fasterWhisper?.found),
+  );
+  /** Vercel/Netlify/Lambda — a host where Python can never be installed. */
+  const serverless = Boolean(health?.serverless);
 
   /* ------------------------------------------------ health check */
   React.useEffect(() => {
@@ -848,17 +856,28 @@ export function AudioSrtClient() {
             />
           </div>
 
-          {health?.ffmpeg?.found === false ? (
+          {health && !localReady ? (
+            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              {serverless ? (
+                <>
+                  This deployment is serverless, which cannot run the local Whisper engine (no
+                  Python). Deploy the same repo on <b>Render</b> with the included{" "}
+                  <code className="font-mono">Dockerfile</code> to transcribe here — the steps are
+                  in Settings.
+                </>
+              ) : (
+                <>
+                  The local engine is not ready. Install Python and run{" "}
+                  <code className="font-mono">pip install faster-whisper</code> (see Settings)
+                  before transcribing.
+                </>
+              )}
+            </p>
+          ) : null}
+          {localReady && health?.ffmpeg?.found === false ? (
             <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
               FFmpeg not found — WAV uploads still work. Install FFmpeg for MP3/M4A/MP4 (see
               Settings).
-            </p>
-          ) : null}
-          {health?.fasterWhisper?.found === false ? (
-            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              faster-whisper is not installed — run{" "}
-              <code className="font-mono">pip install faster-whisper</code> (see Settings) before
-              transcribing.
             </p>
           ) : null}
         </>
@@ -873,11 +892,17 @@ export function AudioSrtClient() {
               onChange={(e) => setUrlInput(e.target.value)}
             />
           </Field>
-          {health?.ytDlp?.found === false ? (
+          {localReady && health?.ytDlp?.found === false ? (
             <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
               yt-dlp not found on this server — install{" "}
               <code className="font-mono">pip install yt-dlp</code> and restart to transcribe from
               YouTube links.
+            </p>
+          ) : null}
+          {health && serverless && !localReady ? (
+            <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+              YouTube links need the local engine (yt-dlp + Whisper), which this serverless host
+              cannot run — deploy on <b>Render</b> to use them.
             </p>
           ) : null}
         </div>
@@ -1490,8 +1515,16 @@ export function AudioSrtClient() {
     <div>
       <PageHeader
         title="Audio → SRT Subtitles"
-        subtitle="Real, local transcription with faster-whisper. Upload speech or a song — or paste a YouTube URL — and get sentence-aware, editable subtitles with karaoke-level sync."
-        badge={<Badge variant="success">100% local</Badge>}
+        subtitle={
+          localReady
+            ? "Real, local transcription with faster-whisper. Upload speech or a song — or paste a YouTube URL — and get sentence-aware, editable subtitles with karaoke-level sync."
+            : "This host cannot run Whisper. Deploy the same app on Render (Dockerfile included) for real, local transcription — no third-party speech API."
+        }
+        badge={
+          <Badge variant={localReady ? "success" : "outline"}>
+            {localReady ? "100% local" : "needs a Whisper host"}
+          </Badge>
+        }
       />
 
       {healthError ? (
@@ -1517,7 +1550,7 @@ export function AudioSrtClient() {
       {!file && !urlInput && !segs.length ? (
         <p className="mt-4 text-xs text-muted-foreground">
           No upload needed for the rest of the studio — this tool is the only one that processes
-          audio, and it keeps everything on this machine.
+          audio, and it keeps everything on the server that runs it.
         </p>
       ) : null}
     </div>

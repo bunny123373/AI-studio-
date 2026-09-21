@@ -1,0 +1,73 @@
+# Render blueprint — deploys BALU AI STUDIO with the REAL local audio pipeline.
+#
+# Render builds ./Dockerfile, so the running service has Python +
+# faster-whisper + FFmpeg + yt-dlp. That means Audio → SRT works on a public
+# URL (long uploads AND YouTube links) with no third-party speech API.
+#
+# How to use:
+#   1. Push this repo to GitHub.
+#   2. Render → New → Blueprint → pick the repo. Render reads this file.
+#   3. Fill in the secrets marked `sync: false` (they are never committed):
+#        GEMINI_API_KEY, HUGGINGFACE_API_KEY, POLLINATIONS_API_KEY,
+#        PYANNOTE_AUTH_TOKEN
+#      These are OPTIONAL for transcription itself — the audio pipeline needs
+#      no keys at all. They only power the text/image/diarization extras.
+#
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: balu-ai-studio
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Free = 512 MB RAM. faster-whisper 'base' (int8) fits; pick 'tiny' if a
+    # job ever gets OOM-killed, or move to a larger instance for 'small'/
+    # 'medium'/'large-v3'.
+    plan: free
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      # ── Audio pipeline (local, no keys) ─────────────────────────────────
+      - key: PYTHON_BIN
+        value: python3
+      # tiny | base | small | medium | large-v3  (bigger = better + hungrier)
+      - key: WHISPER_MODEL
+        value: base
+      - key: MAX_AUDIO_MB
+        value: "200"
+      - key: AUDIO_WORK_DIR
+        value: /tmp/balu-audio
+      # Where faster-whisper caches its model between requests.
+      - key: HF_HOME
+        value: /var/hf-cache
+      # Optional speaker labels (also needs `pip install pyannote.audio`
+      # inside the image, which is heavy — see README).
+      - key: PYANNOTE_AUTH_TOKEN
+        sync: false
+
+      # ── Text AI (optional) ──────────────────────────────────────────────
+      - key: AI_TEXT_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-3.6-flash
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # ── Images (optional) ───────────────────────────────────────────────
+      - key: IMAGE_PROVIDER
+        value: gemini
+      - key: GEMINI_IMAGE_MODEL
+        value: gemini-3.1-flash-image
+      - key: HUGGINGFACE_API_KEY
+        sync: false
+      - key: POLLINATIONS_API_KEY
+        sync: false
+
+    # ── Optional: persist the Whisper model cache (paid plans only) ────────
+    # Without a disk the model re-downloads after each spin-down/restart.
+    # Uncomment once you have a paid instance, then redeploy:
+    #
+    # disk:
+    #   name: whisper-cache
+    #   mountPath: /var/hf-cache
+    #   sizeGB: 5

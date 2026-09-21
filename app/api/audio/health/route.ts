@@ -19,8 +19,18 @@ export async function GET() {
     isDiarizationReady(),
   ]);
   const text = textProviderConfig() ?? { id: "none", label: "None", configured: false };
+  // A host that can never install Python (Vercel/Netlify/Lambda) — the UI uses
+  // this to show "deploy on Render" instead of a misleading "pip install" hint.
+  const serverless = Boolean(
+    process.env.VERCEL ||
+      process.env.NETLIFY ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
   return json({
     ok: true,
+    // Local engine = Python + faster-whisper on this host.
+    localReady: python && fasterWhisper,
+    serverless,
     ffmpeg: { found: Boolean(ffmpeg), path: ffmpeg ?? undefined },
     python: { found: python },
     fasterWhisper: { found: fasterWhisper },

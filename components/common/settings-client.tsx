@@ -34,6 +34,10 @@ interface Status {
   runtime?: { provider: string | null; model: string | null };
   image?: { id: string; label: string; configured: boolean };
   whisper?: { configured: boolean; model: string; note?: string };
+  /** True when the local engine (Python + faster-whisper) can run on this host. */
+  localReady?: boolean;
+  /** Vercel/Netlify/Lambda — a host where Python can never be installed. */
+  serverless?: boolean;
   ffmpeg?: { found: boolean };
   ytDlp?: { found: boolean };
   diarization?: { installed: boolean; tokenConfigured: boolean; ready: boolean };
@@ -235,8 +239,10 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
             detail={
               <span>
                 {status.whisper
-                  ? `model: ${status.whisper.model} · runs 100% locally`
-                  : "Install Python + faster-whisper (instructions below)"}
+                  ? `model: ${status.whisper.model} · runs 100% locally on the server`
+                  : status.serverless
+                    ? "Not available on this serverless host — deploy on Render (see below)."
+                    : "Install Python + faster-whisper (instructions below)"}
               </span>
             }
           />
@@ -257,7 +263,9 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
             detail={
               status.ytDlp?.found
                 ? "Found — transcribe videos straight from a YouTube URL."
-                : "Not found — install with `pip install yt-dlp` to enable YouTube URL transcription."
+                : status.serverless
+                  ? "Not available on serverless hosts — use the Render deployment (see below)."
+                  : "Not found — install with `pip install yt-dlp` to enable YouTube URL transcription."
             }
           />
           <Row
@@ -404,48 +412,89 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p>
               Transcription runs fully locally with{" "}
-              <b className="text-foreground">faster-whisper</b> (free, open-source). You
-              need Python and one package:
+              <b className="text-foreground">faster-whisper</b> (free, open-source) — no
+              third-party speech API. It needs Python on the same host as the app.
             </p>
-            <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
-              {`pip install faster-whisper   # or: py -m pip install faster-whisper`}
-            </pre>
-            <ul className="list-inside list-disc space-y-1 text-xs">
-              <li>
-                The first run downloads the Whisper model (internet needed once;
-                ~75 MB for &quot;small&quot;).
-              </li>
-              <li>
-                WAV files need no FFmpeg. For MP3/M4A/MP4 etc. install FFmpeg
-                (e.g. <code className={CODE}>winget install ffmpeg</code>) — or the app
-                auto-detects the bundled binary from Python&apos;s{" "}
-                <code className={CODE}>imageio-ffmpeg</code>.
-              </li>
-              <li>
-                <code className={CODE}>WHISPER_MODEL=small</code> (default), options:{" "}
-                <code className={CODE}>tiny/base/small/medium/large-v3</code>.
-              </li>
-              <li>
-                <b className="text-foreground">YouTube URLs</b> (optional): install{" "}
-                <code className={CODE}>pip install yt-dlp</code> to transcribe videos
-                from a link instead of uploading a file.
-              </li>
-              <li>
-                <b className="text-foreground">Speaker labels</b> (optional): install{" "}
-                <code className={CODE}>pip install pyannote.audio</code> and set{" "}
-                <code className={CODE}>PYANNOTE_AUTH_TOKEN</code> (Hugging Face token;
-                accept the pyannote/speaker-diarization-3.1 model terms first).
-              </li>
-              <li>
-                <b className="text-foreground">Bilingual subtitles</b> (optional):
-                configure a text AI provider to auto-translate subtitle lines.
-              </li>
-              <li>
-                Temp uploads are deleted automatically{" "}
-                (<code className={CODE}>AUDIO_RETENTION_HOURS</code>, default 0 = after
-                each job).
-              </li>
-            </ul>
+            {status?.serverless ? (
+              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                This deployment is serverless, so the local engine cannot run here.
+                Deploy the same repo on <b>Render</b> — it ships a{" "}
+                <code className={CODE}>Dockerfile</code> and{" "}
+                <code className={CODE}>render.yaml</code> that already include Python,
+                faster-whisper, FFmpeg and yt-dlp, so there is nothing to install.
+              </p>
+            ) : (
+              <p>You need Python and one package:</p>
+            )}
+            {status?.serverless ? (
+              <ul className="list-inside list-disc space-y-1 text-xs">
+                <li>
+                  Pick the model with the <code className={CODE}>WHISPER_MODEL</code> env
+                  var: <code className={CODE}>tiny/base/small/medium/large-v3</code>. The
+                  free instance has 512 MB RAM — <code className={CODE}>base</code> fits.
+                </li>
+                <li>
+                  <b className="text-foreground">YouTube URLs</b> work there too (yt-dlp is
+                  bundled in the image).
+                </li>
+                <li>
+                  <b className="text-foreground">Speaker labels</b> (optional): the image
+                  also needs <code className={CODE}>pip install pyannote.audio</code>, plus{" "}
+                  <code className={CODE}>PYANNOTE_AUTH_TOKEN</code>.
+                </li>
+                <li>
+                  <b className="text-foreground">Bilingual subtitles</b> (optional):
+                  configure a text AI provider to auto-translate subtitle lines.
+                </li>
+                <li>
+                  Temp uploads are deleted automatically{" "}
+                  (<code className={CODE}>AUDIO_RETENTION_HOURS</code>, default 0 = after
+                  each job).
+                </li>
+              </ul>
+            ) : (
+              <>
+                <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
+                  {`pip install faster-whisper   # or: py -m pip install faster-whisper`}
+                </pre>
+                <ul className="list-inside list-disc space-y-1 text-xs">
+                  <li>
+                    The first run downloads the Whisper model (internet needed once;
+                    ~75 MB for &quot;small&quot;).
+                  </li>
+                  <li>
+                    WAV files need no FFmpeg. For MP3/M4A/MP4 etc. install FFmpeg
+                    (e.g. <code className={CODE}>winget install ffmpeg</code>) — or the app
+                    auto-detects the bundled binary from Python&apos;s{" "}
+                    <code className={CODE}>imageio-ffmpeg</code>.
+                  </li>
+                  <li>
+                    <code className={CODE}>WHISPER_MODEL=small</code> (default), options:{" "}
+                    <code className={CODE}>tiny/base/small/medium/large-v3</code>.
+                  </li>
+                  <li>
+                    <b className="text-foreground">YouTube URLs</b> (optional): install{" "}
+                    <code className={CODE}>pip install yt-dlp</code> to transcribe videos
+                    from a link instead of uploading a file.
+                  </li>
+                  <li>
+                    <b className="text-foreground">Speaker labels</b> (optional): install{" "}
+                    <code className={CODE}>pip install pyannote.audio</code> and set{" "}
+                    <code className={CODE}>PYANNOTE_AUTH_TOKEN</code> (Hugging Face token;
+                    accept the pyannote/speaker-diarization-3.1 model terms first).
+                  </li>
+                  <li>
+                    <b className="text-foreground">Bilingual subtitles</b> (optional):
+                    configure a text AI provider to auto-translate subtitle lines.
+                  </li>
+                  <li>
+                    Temp uploads are deleted automatically{" "}
+                    (<code className={CODE}>AUDIO_RETENTION_HOURS</code>, default 0 = after
+                    each job).
+                  </li>
+                </ul>
+              </>
+            )}
           </CardContent>
         </Card>
 

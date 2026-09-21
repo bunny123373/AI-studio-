@@ -59,7 +59,7 @@ export async function findFfmpeg(): Promise<string | null> {
   // Python bundle (imageio-ffmpeg ships a real ffmpeg binary)
   try {
     const { stdout } = await execFileP(
-      "python",
+      pythonInterpreter(),
       ["-c", "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())"],
       { windowsHide: true, timeout: 15000 },
     );
@@ -73,7 +73,7 @@ export async function findFfmpeg(): Promise<string | null> {
 
 export async function isPythonAvailable(): Promise<boolean> {
   try {
-    await execFileP("python", ["--version"], {
+    await execFileP(pythonInterpreter(), ["--version"], {
       windowsHide: true,
       timeout: 8000,
     });
@@ -86,7 +86,7 @@ export async function isPythonAvailable(): Promise<boolean> {
 export async function isFasterWhisperAvailable(): Promise<boolean> {
   try {
     await execFileP(
-      "python",
+      pythonInterpreter(),
       ["-c", "import faster_whisper"],
       { windowsHide: true, timeout: 20000 },
     );
@@ -98,9 +98,10 @@ export async function isFasterWhisperAvailable(): Promise<boolean> {
 
 /**
  * True when THIS host can actually run local Whisper transcription.
- * Serverless/edge hosts (Vercel, CF Workers, …) have no Python, so uploads
+ * Serverless/edge hosts (Vercel, Netlify, Lambda) have no Python, so uploads
  * there must fail fast with a clear message instead of creating a job that
- * dies with `spawn python ENOENT`.
+ * dies with `spawn python ENOENT`. A host that DOES ship Python (your machine,
+ * a VPS, or Render via the repo's Dockerfile) reports ready.
  */
 export async function transcriptionBackendReady(): Promise<{
   ready: boolean;
@@ -110,9 +111,10 @@ export async function transcriptionBackendReady(): Promise<{
     return {
       ready: false,
       reason:
-        "This server has no Python, so audio transcription cannot run here. " +
-        "It needs Python + faster-whisper on the same host — use your local " +
-        "machine or a VPS (a free Vercel/Netlify site can't do it).",
+        "This host has no Python, so the local Whisper engine cannot run here. " +
+        "It needs Python + faster-whisper on the same machine: run the app " +
+        "locally, on a VPS, or on Render using this repo's Dockerfile / " +
+        "render.yaml (serverless hosts like Vercel and Netlify cannot).",
     };
   }
   if (!(await isFasterWhisperAvailable())) {
@@ -143,7 +145,7 @@ export async function isDiarizationReady(): Promise<{
   );
   try {
     await execFileP(
-      "python",
+      pythonInterpreter(),
       ["-c", "import pyannote.audio"],
       { windowsHide: true, timeout: 25000 },
     );
