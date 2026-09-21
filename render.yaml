@@ -9,7 +9,7 @@
 #   2. Render → New → Blueprint → pick the repo. Render reads this file.
 #   3. Fill in the secrets marked `sync: false` (they are never committed):
 #        GEMINI_API_KEY, HUGGINGFACE_API_KEY, POLLINATIONS_API_KEY,
-#        PYANNOTE_AUTH_TOKEN
+#        PYANNOTE_AUTH_TOKEN, OPENROUTER_API_KEY
 #      These are OPTIONAL for transcription itself — the audio pipeline needs
 #      no keys at all. They only power the text/image/diarization extras.
 #
@@ -46,12 +46,18 @@ services:
         sync: false
 
       # ── Text AI (optional) ──────────────────────────────────────────────
+      # Default: Gemini text (free tier). To use OpenRouter / Ling instead,
+      # set AI_TEXT_PROVIDER=openrouter on the service and fill the key:
       - key: AI_TEXT_PROVIDER
         value: gemini
       - key: GEMINI_MODEL
         value: gemini-3.6-flash
       - key: GEMINI_API_KEY
         sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OPENROUTER_MODEL
+        value: inclusionai/ling-3.0-flash-vl
 
       # ── Images (optional) ───────────────────────────────────────────────
       - key: IMAGE_PROVIDER
