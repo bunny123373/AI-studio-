@@ -87,7 +87,7 @@ export function OutputCard({
           <div className="space-y-4">
             {blocks.map((b, i) => (
               <div key={i} className="rounded-md border border-border bg-muted/25 p-4">
-                <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h4 className="text-sm font-semibold text-foreground">
                     {b.title}
                   </h4>

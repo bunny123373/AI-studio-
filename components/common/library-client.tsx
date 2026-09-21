@@ -168,7 +168,7 @@ export function LibraryClient() {
           {filtered.map((p, i) => (
             <Card key={i} className="border-border">
               <CardContent className="p-4">
-                <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
                     {CATEGORY_LABEL[p.category] ?? p.category}
                   </span>

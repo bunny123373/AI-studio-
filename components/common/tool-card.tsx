@@ -42,7 +42,7 @@ export function ToolCard({
               {description}
             </p>
           </div>
-          <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="mt-auto inline-flex items-center gap-1 text-sm font-medium text-primary opacity-100 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100">
             Open
             <span aria-hidden>→</span>
           </span>

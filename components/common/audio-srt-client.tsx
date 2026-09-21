@@ -1149,16 +1149,16 @@ export function AudioSrtClient() {
                         />
                       </>
                     ) : null}
-                    <div className="ml-auto flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="ml-auto flex gap-1 opacity-100 transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover:opacity-100">
                       <button
-                        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground sm:p-1.5"
                         onClick={() => splitSeg(s.id)}
                         title="Split at playhead/middle"
                       >
                         <Scissors className="size-3.5" />
                       </button>
                       <button
-                        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30"
+                        className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 sm:p-1.5"
                         onClick={() => mergeSeg(s.id)}
                         disabled={i >= segs.length - 1}
                         title="Merge with next"
@@ -1166,7 +1166,7 @@ export function AudioSrtClient() {
                         <Merge className="size-3.5" />
                       </button>
                       <button
-                        className="rounded p-1.5 text-muted-foreground hover:bg-accent hover:text-destructive"
+                        className="rounded p-2 text-muted-foreground hover:bg-accent hover:text-destructive sm:p-1.5"
                         onClick={() => deleteSeg(s.id)}
                         title="Delete"
                       >
@@ -1244,7 +1244,7 @@ export function AudioSrtClient() {
 
         <Card className="border-border">
           <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">Caption style</h2>
               <Badge variant="outline">preview + export</Badge>
             </div>
@@ -1396,7 +1396,7 @@ export function AudioSrtClient() {
 
         <Card className="border-border">
           <CardContent className="space-y-3 p-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">Export subtitles</h2>
               <Badge variant={srtValid ? "success" : "destructive"}>
                 {srtValid ? "Valid" : "Needs attention"}
@@ -1490,7 +1490,7 @@ export function AudioSrtClient() {
               ) : null}
             </div>
 
-            <pre className="max-h-48 overflow-y-auto rounded-md border border-border bg-muted/30 p-3 text-[11px] leading-5 text-muted-foreground">
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/30 p-3 text-[11px] leading-5 text-muted-foreground">
               {srt || "Build subtitles by editing lines above."}
             </pre>
           </CardContent>

@@ -74,7 +74,7 @@ export default function DashboardPage() {
       </div>
 
       <section aria-labelledby="tools-heading" className="mb-10">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 id="tools-heading" className="text-lg font-semibold">
             Creator tools
           </h2>
