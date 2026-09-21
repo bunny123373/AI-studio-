@@ -31,6 +31,8 @@ export interface ImageGenerationResult {
   seed?: number;
   waitSeconds?: string;
   error?: string;
+  /** Honest note shown in the UI (e.g. "Gemini quota exhausted, used Pollinations.") */
+  notice?: string;
 }
 
 export interface ImageProvider {

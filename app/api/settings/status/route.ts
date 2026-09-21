@@ -1,6 +1,6 @@
 import { json } from "@/lib/api/generate-route";
 import { textProviderConfig } from "@/lib/ai/text";
-import { getImageProvider } from "@/lib/ai/image";
+import { getImageProvider, getImageProviderFor } from "@/lib/ai/image";
 import { env } from "@/lib/ai/env";
 import { canSelectTextProvider, getRuntimeText } from "@/lib/ai/config";
 import {
@@ -41,6 +41,23 @@ export async function GET() {
     ],
     runtime: getRuntimeText(),
     image: { id: image.id, label: image.label, configured: image.configured },
+    // Image engines offered in the tools' "Image engine" picker (keys stay in env).
+    imageOptions: [
+      {
+        id: "gemini",
+        label: "Google Gemini (Nano Banana)",
+        configured: getImageProviderFor("gemini").configured,
+        model: env.geminiImageModel,
+        note: "image models need their own quota — falls back to Pollinations when exhausted.",
+      },
+      {
+        id: "pollinations",
+        label: "Pollinations.ai (free)",
+        configured: getImageProviderFor("pollinations").configured,
+        model: "flux",
+        note: "free tier can be busy during peak hours.",
+      },
+    ],
     whisper: {
       configured: whisper,
       model: env.whisperModel,

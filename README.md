@@ -53,7 +53,7 @@ in seconds when you want them.
 | Tool | Route | What it does |
 | --- | --- | --- |
 | Dashboard | `/` | Overview, stats and **Quick Create** (URL prefill) |
-| AI Image | `/image` | Keyless image generation — Pollinations.ai by default, SD WebUI optional |
+| AI Image | `/image` | Image generation — Gemini (Nano Banana) by default, free Pollinations as no-key fallback, SD WebUI optional |
 | Thumbnail | `/thumbnail` | Concept sheet + 16:9 image with **real text drawn in your language** (6 scripts, real fonts) + live generation timer |
 | Lyrics | `/lyrics` | Offline template engine · 6 languages · 10 song types · **natural Telugu** |
 | Captions | `/captions` | Captions + hashtags + CTA per platform |
@@ -185,7 +185,7 @@ still works.** Keys never reach the browser.
 | **Gemini free tier** | [AI Studio key](https://aistudio.google.com/apikey) → `AI_TEXT_PROVIDER=gemini` + `GEMINI_API_KEY` |
 | **OpenRouter `:free` models** | Key at [openrouter.ai](https://openrouter.ai/keys) → base `https://openrouter.ai/api/v1` + a `…:free` model |
 | **Local Stable Diffusion** | `IMAGE_PROVIDER=local` + `LOCAL_SD_URL=http://127.0.0.1:7860` (AUTOMATIC1111) |
-| **Images (free by default)** | Nothing to do — Pollinations.ai already powers `/image` & `/thumbnail` keyless. If the free tier is busy, add a **free** Quest-Pollen key at [enter.pollinations.ai](https://enter.pollinations.ai/keys) → `POLLINATIONS_API_KEY=sk_…` for the reliable endpoint |
+| **Images (free by default)** | Nothing to do — **Gemini (Nano Banana)** is the default engine (same `GEMINI_API_KEY`). Its image models bill separately from text; if the account has no image quota the app **falls back to free Pollinations with a visible notice**. Prefer always-free: set `IMAGE_PROVIDER=pollinations` (optionally add a free Quest-Pollen key at [enter.pollinations.ai](https://enter.pollinations.ai/keys) → `POLLINATIONS_API_KEY=sk_…` for the reliable endpoint) |
 | **Audio → SRT** | Nothing to do — faster-whisper runs locally and free |
 
 Anything OpenAI-compatible works (Ollama, Groq, OpenRouter, LM Studio, vLLM,
@@ -210,9 +210,10 @@ variables — the picker never stores or sends them.
 | `OPENAI_API_KEY` | — | Any OpenAI-compatible API (OpenAI, Groq, DeepSeek, Ollama…) |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Point at local models (LM Studio, vLLM…) |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Model name |
-| `GEMINI_API_KEY` | — | Google Gemini (free tier) |
-| `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini model |
-| `IMAGE_PROVIDER` | `pollinations` | `pollinations` (free) · `local` · `none` |
+| `GEMINI_API_KEY` | — | Google Gemini (free tier) — powers text AND image (Nano Banana) |
+| `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini text model |
+| `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Nano Banana image model (`gemini-2.5-flash-image` for first-gen) |
+| `IMAGE_PROVIDER` | `gemini` | `gemini` (default) · `pollinations` (always-free) · `local` · `none` |
 | `POLLINATIONS_API_KEY` | *(empty)* | Optional free Pollinations key (`sk_…` from enter.pollinations.ai — reliable endpoint; without it the keyless free tier is used) |
 | `LOCAL_SD_URL` | `http://127.0.0.1:7860` | Local Stable Diffusion (AUTOMATIC1111 API) |
 | `HUGGINGFACE_API_KEY` | — | Reserved for future HF endpoints |
@@ -233,7 +234,7 @@ Provider adapters live under `lib/ai/` and implement one interface each:
 
 ```
 TextAIProvider   lib/ai/text/{templates,openai,gemini}.ts
-ImageAIProvider  lib/ai/image/{pollinations,local}.ts
+ImageAIProvider  lib/ai/image/{pollinations,gemini,local}.ts
 ```
 
 Add a backend, switch it on via `AI_TEXT_PROVIDER` / `IMAGE_PROVIDER`, and every
@@ -304,11 +305,11 @@ Environment variables to add in Vercel (*Settings → Environment Variables*):
 
 | Variable | Value | Purpose |
 | --- | --- | --- |
-| `AI_TEXT_PROVIDER` | `openai` (or `gemini`) | text AI for concepts/scripts/translation |
-| `OPENAI_API_KEY` | your key | required for text AI (any OpenAI-compatible provider) — do **not** set `OPENAI_BASE_URL` to `localhost` on a hosted site |
-| `IMAGE_PROVIDER` | `pollinations` | image generation (online; free tier with optional key) |
-| `POLLINATIONS_API_KEY` | your key | reliable `gen.pollinations.ai` endpoint |
-| (optional) | `GEMINI_API_KEY`, `HUGGINGFACE_API_KEY`, … | set to taste, see Configuration |
+| `AI_TEXT_PROVIDER` | `gemini` | text AI for concepts/scripts/translation |
+| `GEMINI_API_KEY` | your key | required for text AI (and the default Gemini image engine) — set alongside `AI_TEXT_PROVIDER=gemini` |
+| `IMAGE_PROVIDER` | `gemini` | image generation (Nano Banana; **falls back to free Pollinations** when the account has no image quota) |
+| `POLLINATIONS_API_KEY` | your key | reliable `gen.pollinations.ai` fallback endpoint |
+| (optional) | `OPENAI_API_KEY`, `GEMINI_IMAGE_MODEL`, `HUGGINGFACE_API_KEY`, … | set to taste, see Configuration |
 
 Deploy: push to GitHub → *vercel.com/new* → import the repo → add env vars →
 Deploy. Or CLI: `npx vercel --prod` (logs in via browser once).

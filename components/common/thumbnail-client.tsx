@@ -71,9 +71,15 @@ interface ImageResult {
   dataUrl?: string;
   seed?: number;
   error?: string;
+  notice?: string;
   /** True when the selected-language text was drawn on top with a real font. */
   composed?: boolean;
 }
+
+const IMAGE_ENGINES = [
+  { value: "gemini", label: "Gemini (default)" },
+  { value: "pollinations", label: "Pollinations (free)" },
+];
 
 interface ThumbVariant {
   ok: boolean;
@@ -83,6 +89,8 @@ interface ThumbVariant {
   composed?: boolean;
   /** Honest per-variant note (e.g. text could not be drawn — raw shown). */
   error?: string;
+  /** Honest notice, e.g. Gemini quota exhausted — used free Pollinations. */
+  notice?: string;
 }
 
 /** First short "Main:" line from the concept's Thumbnail Text Suggestions. */
@@ -326,6 +334,7 @@ export function ThumbnailClient() {
   const concept = useGenerator("/api/thumbnail");
 
   const [variations, setVariations] = React.useState(3);
+  const [imageEngine, setImageEngine] = React.useState("gemini");
   const [referenceUrl, setReferenceUrl] = React.useState<string | null>(null);
   const [referenceName, setReferenceName] = React.useState("");
   const [palette, setPalette] = React.useState<string[]>([]);
@@ -521,11 +530,19 @@ export function ThumbnailClient() {
             style: "thumbnail",
             ratio: "16:9",
             seed,
+            provider: imageEngine,
           }),
         });
         const data = (await res.json()) as ImageResult;
         if (data.ok && (data.url ?? data.dataUrl)) {
           const src = (data.url ?? data.dataUrl) as string;
+          const done = (over: Partial<ThumbVariant>): ThumbVariant => ({
+            ok: true,
+            seed: data.seed ?? seed,
+            url: data.url,
+            notice: data.notice,
+            ...over,
+          });
           if (overlay || portrait) {
             const composed = await composeThumbnail(
               src,
@@ -534,29 +551,14 @@ export function ThumbnailClient() {
               portrait,
             );
             if (composed) {
-              return {
-                ok: true,
-                seed: data.seed ?? seed,
-                url: data.url,
-                dataUrl: composed,
-                composed: true,
-              };
+              return done({ dataUrl: composed, composed: true });
             }
-            return {
-              ok: true,
-              seed: data.seed ?? seed,
-              url: data.url,
+            return done({
               error:
                 "Text / portrait could not be drawn over this image — showing the raw version.",
-            };
+            });
           }
-          return {
-            ok: true,
-            seed: data.seed ?? seed,
-            url: data.url,
-            dataUrl: data.dataUrl,
-            composed: false,
-          };
+          return done({ dataUrl: data.dataUrl, composed: false });
         }
         lastError = data.error ?? lastError;
         const transient =
@@ -849,7 +851,20 @@ export function ThumbnailClient() {
                   : ""}
               </p>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <Field
+                id="th-engine"
+                label="Image engine"
+                hint="Gemini (Nano Banana) is the default. Image models have their own quota — when exhausted, the tool honestly falls back to free Pollinations. Pollinations' free tier can be busy during peak hours."
+              >
+                <Select
+                  id="th-engine"
+                  value={imageEngine}
+                  onChange={(e) => setImageEngine(e.target.value)}
+                  options={IMAGE_ENGINES}
+                />
+              </Field>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <Field id="th-variations" label="Variations (A/B test)">
                   <Select
                     id="th-variations"
@@ -1019,6 +1034,11 @@ export function ThumbnailClient() {
                         {v.error ? (
                           <p className="mb-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
                             {v.error}
+                          </p>
+                        ) : null}
+                        {v.notice ? (
+                          <p className="mb-2 rounded-md border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200">
+                            {v.notice}
                           </p>
                         ) : null}
                         <div className="flex flex-wrap items-center justify-between gap-2">

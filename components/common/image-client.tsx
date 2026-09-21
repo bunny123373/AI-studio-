@@ -36,6 +36,11 @@ const STYLES = [
 
 const RATIOS = ["1:1", "16:9", "9:16", "4:3"];
 
+const IMAGE_ENGINES = [
+  { value: "gemini", label: "Gemini (default)" },
+  { value: "pollinations", label: "Pollinations (free)" },
+];
+
 interface ImageResult {
   ok: boolean;
   provider?: string;
@@ -43,6 +48,7 @@ interface ImageResult {
   dataUrl?: string;
   seed?: number;
   error?: string;
+  notice?: string;
 }
 
 export function ImageClient() {
@@ -50,6 +56,7 @@ export function ImageClient() {
   const [prompt, setPrompt] = React.useState(prefill.prompt ?? "");
   const [style, setStyle] = React.useState("realistic");
   const [ratio, setRatio] = React.useState("1:1");
+  const [imageEngine, setImageEngine] = React.useState("gemini");
   const [seed, setSeed] = React.useState("");
   const [negative, setNegative] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -73,6 +80,7 @@ export function ImageClient() {
           ratio,
           seed: freshSeed ? undefined : seed ? Number(seed) : undefined,
           negative,
+          provider: imageEngine,
         }),
       });
       const data = (await res.json()) as ImageResult;
@@ -133,10 +141,14 @@ export function ImageClient() {
     <div>
       <PageHeader
         title="AI Image Generator"
-        subtitle="Describe an image and generate it — free, no API key required (internet needed)."
+        subtitle="Describe an image and generate it — Gemini by default, free Pollinations as the no-key fallback."
         badge={
           <Badge variant="secondary">
-            {result?.provider ? `Powered by ${result.provider}` : "Free"}
+            {result?.provider
+              ? `Powered by ${result.provider}`
+              : imageEngine === "gemini"
+                ? "Gemini"
+                : "Free"}
           </Badge>
         }
       />
@@ -173,6 +185,19 @@ export function ImageClient() {
                 value={ratio}
                 onChange={(e) => setRatio(e.target.value)}
                 options={RATIOS}
+              />
+            </Field>
+            <Field
+              id="img-engine"
+              label="Image engine"
+              className="sm:col-span-2"
+              hint="Gemini (Nano Banana) is the default. Image models have their own quota — when exhausted, the app honestly falls back to free Pollinations. Pollinations' free tier can be busy during peak hours."
+            >
+              <Select
+                id="img-engine"
+                value={imageEngine}
+                onChange={(e) => setImageEngine(e.target.value)}
+                options={IMAGE_ENGINES}
               />
             </Field>
             <Field
@@ -248,6 +273,11 @@ export function ImageClient() {
                 Right-click the image to save it, or use Download.
               </p>
             </div>
+            {result?.notice ? (
+              <p className="border-t border-border bg-sky-500/10 px-4 py-2 text-xs leading-5 text-sky-200">
+                {result.notice}
+              </p>
+            ) : null}
           </CardContent>
         </Card>
       ) : null}

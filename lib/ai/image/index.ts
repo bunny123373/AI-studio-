@@ -1,11 +1,12 @@
 import { env } from "@/lib/ai/env";
 import { pollinationsProvider } from "@/lib/ai/image/pollinations";
+import { geminiImageProvider } from "@/lib/ai/image/gemini";
 import { localSdProvider } from "@/lib/ai/image/local";
 import type { ImageProvider } from "@/lib/ai/types";
 
-/** Returns the configured image provider (default: free Pollinations.ai). */
-export function getImageProvider(): ImageProvider {
-  switch (env.imageProvider) {
+/** Resolve a provider by id ("gemini" | "pollinations" | "local" | "none"). */
+export function getImageProviderFor(id: string): ImageProvider {
+  switch (id) {
     case "local":
       return localSdProvider;
     case "none":
@@ -20,7 +21,14 @@ export function getImageProvider(): ImageProvider {
         }),
       };
     case "pollinations":
-    default:
       return pollinationsProvider;
+    case "gemini":
+    default:
+      return geminiImageProvider;
   }
+}
+
+/** Returns the configured image provider (default: Google Gemini). */
+export function getImageProvider(): ImageProvider {
+  return getImageProviderFor(env.imageProvider);
 }
