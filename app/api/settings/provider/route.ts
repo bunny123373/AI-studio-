@@ -4,6 +4,7 @@ import { rateLimit } from "@/lib/ai/ratelimit";
 import {
   canSelectTextProvider,
   getRuntimeText,
+  runtimePickerEnabled,
   setRuntimeText,
   type TextProviderChoice,
 } from "@/lib/ai/config";
@@ -15,8 +16,12 @@ const CHOICES: TextProviderChoice[] = ["gemini", "openai"];
 /**
  * GET — the current runtime override (in-memory) and the per-provider
  * defaults from the environment. Never exposes secret values.
+ * Only available locally / when the host explicitly allows it.
  */
 export async function GET() {
+  if (!runtimePickerEnabled()) {
+    return json({ ok: false, error: "Not available on this deployment." }, 404);
+  }
   return json(providerState());
 }
 
@@ -24,8 +29,12 @@ export async function GET() {
  * POST — switch the active text provider / model at runtime.
  * Body: { provider?: "gemini" | "openai" | null, model?: string | null }
  * Passing provider: null resets to the `.env.local` default.
+ * Only available locally / when the host explicitly allows it.
  */
 export async function POST(req: Request) {
+  if (!runtimePickerEnabled()) {
+    return json({ ok: false, error: "Not available on this deployment." }, 404);
+  }
   const rl = rateLimit(
     `settings:${clientIp(req)}`,
     Math.max(2, Math.floor(env.rateLimitMax / 10)),

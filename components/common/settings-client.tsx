@@ -77,7 +77,7 @@ function Row({
 
 const CODE = "font-mono text-[11px] text-primary";
 
-export function SettingsClient() {
+export function SettingsClient({ showPicker = false }: { showPicker?: boolean }) {
   const [status, setStatus] = React.useState<Status | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [providerSel, setProviderSel] = React.useState("");
@@ -307,6 +307,7 @@ export function SettingsClient() {
           </CardContent>
         </Card>
 
+        {showPicker ? (
         <Card className="border-border">
           <CardHeader>
             <CardTitle className="text-base">
@@ -373,6 +374,7 @@ export function SettingsClient() {
             </p>
           </CardContent>
         </Card>
+        ) : null}
 
         <Card className="border-border">
           <CardHeader>

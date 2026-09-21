@@ -47,3 +47,16 @@ export function modelFor(id: TextProviderChoice): string {
   if (runtime.provider === id && runtime.model) return runtime.model;
   return id === "gemini" ? env.geminiModel : env.openaiModel;
 }
+
+/**
+ * The Settings provider/model switcher is a personal, host-side tool — it
+ * reveals host configuration and mutates in-memory server state, so it is
+ * hidden on public deployments. Enabled only in local development, or when
+ * the host explicitly allows it (ALLOW_RUNTIME_SWITCHER=1).
+ */
+export function runtimePickerEnabled(): boolean {
+  return (
+    process.env.NODE_ENV !== "production" ||
+    process.env.ALLOW_RUNTIME_SWITCHER === "1"
+  );
+}

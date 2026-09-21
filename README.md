@@ -196,9 +196,13 @@ output always arrives.
 Besides the env default (`AI_TEXT_PROVIDER`), Settings → *Switch provider &
 model (runtime)* lets you change the active provider and model in the browser
 (no file edits): it sets an **in-memory server override** that wins over the env
-default until the server restarts. On serverless hosts (Vercel) the override is
-per-instance, so set the real env vars there too. Keys themselves still only
-ever come from environment variables — the picker never stores or sends them.
+default until the server restarts. This card and its `/api/settings/provider`
+endpoint are **hidden on public deployments** (production) — they reveal host
+configuration and mutate in-memory state, so they are local/dev-only by design.
+Set `ALLOW_RUNTIME_SWITCHER=1` to enable them on a self-hosted production
+server. On serverless hosts (Vercel) the override is per-instance anyway, so
+set the real env vars there. Keys themselves only ever come from environment
+variables — the picker never stores or sends them.
 
 | Variable | Default | Options / purpose |
 | --- | --- | --- |
@@ -212,6 +216,7 @@ ever come from environment variables — the picker never stores or sends them.
 | `POLLINATIONS_API_KEY` | *(empty)* | Optional free Pollinations key (`sk_…` from enter.pollinations.ai — reliable endpoint; without it the keyless free tier is used) |
 | `LOCAL_SD_URL` | `http://127.0.0.1:7860` | Local Stable Diffusion (AUTOMATIC1111 API) |
 | `HUGGINGFACE_API_KEY` | — | Reserved for future HF endpoints |
+| `ALLOW_RUNTIME_SWITCHER` | *(off)* | Set `1` to enable the Settings provider/model switcher on a self-hosted production server (always on in dev, hidden on public sites) |
 | `WHISPER_MODEL` | `small` | `tiny` `base` `small` `medium` `large-v3` |
 | `MAX_AUDIO_MB` | `200` | Max upload size |
 | `AUDIO_WORK_DIR` | `./tmp-audio` | Temp working folder (git-ignored) |
