@@ -89,7 +89,7 @@ export const geminiImageProvider: ImageProvider = {
             ok: false,
             provider: this.id,
             error:
-              "Gemini image generation has no quota on this account — image models are billed separately from text. The free Pollinations fallback is used instead.",
+              "Gemini image generation has no quota on this account — image models are billed separately from text on the Gemini API.",
             seed: input.seed,
           };
         }

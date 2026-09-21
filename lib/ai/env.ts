@@ -17,6 +17,12 @@ export const env = {
   pollinationsApiKey: process.env.POLLINATIONS_API_KEY ?? "",
   localSdUrl: (process.env.LOCAL_SD_URL ?? "http://127.0.0.1:7860").replace(/\/$/, ""),
   huggingfaceApiKey: process.env.HUGGINGFACE_API_KEY ?? "",
+  huggingfaceBaseUrl: (
+    process.env.HUGGINGFACE_BASE_URL ??
+    "https://router.huggingface.co/hf-inference/models"
+  ).replace(/\/$/, ""),
+  huggingfaceImageModel:
+    process.env.HUGGINGFACE_IMAGE_MODEL ?? "black-forest-labs/FLUX.1-schnell",
   whisperModel: process.env.WHISPER_MODEL ?? "small",
   maxAudioMb: Number(process.env.MAX_AUDIO_MB ?? 200),
   audioWorkDir: process.env.AUDIO_WORK_DIR ?? "./tmp-audio",

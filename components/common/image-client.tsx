@@ -38,6 +38,7 @@ const RATIOS = ["1:1", "16:9", "9:16", "4:3"];
 
 const IMAGE_ENGINES = [
   { value: "gemini", label: "Gemini (default)" },
+  { value: "huggingface", label: "Hugging Face (needs token)" },
   { value: "pollinations", label: "Pollinations (free)" },
 ];
 
@@ -191,7 +192,7 @@ export function ImageClient() {
               id="img-engine"
               label="Image engine"
               className="sm:col-span-2"
-              hint="Gemini (Nano Banana) is the default. Image models have their own quota — when exhausted, the app honestly falls back to free Pollinations. Pollinations' free tier can be busy during peak hours."
+              hint="Gemini (Nano Banana) is the default. Hugging Face needs a free HUGGINGFACE_API_KEY token. Any engine that fails or isn't configured honestly falls back to free Pollinations (its free tier can be busy at peak times)."
             >
               <Select
                 id="img-engine"

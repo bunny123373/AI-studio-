@@ -1,10 +1,11 @@
 import { env } from "@/lib/ai/env";
 import { pollinationsProvider } from "@/lib/ai/image/pollinations";
 import { geminiImageProvider } from "@/lib/ai/image/gemini";
+import { huggingfaceProvider } from "@/lib/ai/image/huggingface";
 import { localSdProvider } from "@/lib/ai/image/local";
 import type { ImageProvider } from "@/lib/ai/types";
 
-/** Resolve a provider by id ("gemini" | "pollinations" | "local" | "none"). */
+/** Resolve a provider by id ("gemini" | "huggingface" | "pollinations" | "local" | "none"). */
 export function getImageProviderFor(id: string): ImageProvider {
   switch (id) {
     case "local":
@@ -22,6 +23,8 @@ export function getImageProviderFor(id: string): ImageProvider {
       };
     case "pollinations":
       return pollinationsProvider;
+    case "huggingface":
+      return huggingfaceProvider;
     case "gemini":
     default:
       return geminiImageProvider;

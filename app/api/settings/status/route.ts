@@ -51,6 +51,13 @@ export async function GET() {
         note: "image models need their own quota — falls back to Pollinations when exhausted.",
       },
       {
+        id: "huggingface",
+        label: "Hugging Face (Inference Providers)",
+        configured: getImageProviderFor("huggingface").configured,
+        model: env.huggingfaceImageModel,
+        note: "needs a free HUGGINGFACE_API_KEY token — falls back to Pollinations when missing.",
+      },
+      {
         id: "pollinations",
         label: "Pollinations.ai (free)",
         configured: getImageProviderFor("pollinations").configured,

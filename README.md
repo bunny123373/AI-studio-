@@ -53,7 +53,7 @@ in seconds when you want them.
 | Tool | Route | What it does |
 | --- | --- | --- |
 | Dashboard | `/` | Overview, stats and **Quick Create** (URL prefill) |
-| AI Image | `/image` | Image generation — Gemini (Nano Banana) by default, free Pollinations as no-key fallback, SD WebUI optional |
+| AI Image | `/image` | Image generation — Gemini (Nano Banana) by default, plus Hugging Face + free Pollinations engines, SD WebUI optional |
 | Thumbnail | `/thumbnail` | Concept sheet + 16:9 image with **real text drawn in your language** (6 scripts, real fonts) + live generation timer |
 | Lyrics | `/lyrics` | Offline template engine · 6 languages · 10 song types · **natural Telugu** |
 | Captions | `/captions` | Captions + hashtags + CTA per platform |
@@ -185,6 +185,7 @@ still works.** Keys never reach the browser.
 | **Gemini free tier** | [AI Studio key](https://aistudio.google.com/apikey) → `AI_TEXT_PROVIDER=gemini` + `GEMINI_API_KEY` |
 | **OpenRouter `:free` models** | Key at [openrouter.ai](https://openrouter.ai/keys) → base `https://openrouter.ai/api/v1` + a `…:free` model |
 | **Local Stable Diffusion** | `IMAGE_PROVIDER=local` + `LOCAL_SD_URL=http://127.0.0.1:7860` (AUTOMATIC1111) |
+| **Hugging Face images** | Free token with “Inference Providers” permission ([settings/tokens](https://huggingface.co/settings/tokens)) → `HUGGINGFACE_API_KEY=hf_…`, then pick **Hugging Face** in a tool's *Image engine* menu (or set `IMAGE_PROVIDER=huggingface`). Model via `HUGGINGFACE_IMAGE_MODEL` |
 | **Images (free by default)** | Nothing to do — **Gemini (Nano Banana)** is the default engine (same `GEMINI_API_KEY`). Its image models bill separately from text; if the account has no image quota the app **falls back to free Pollinations with a visible notice**. Prefer always-free: set `IMAGE_PROVIDER=pollinations` (optionally add a free Quest-Pollen key at [enter.pollinations.ai](https://enter.pollinations.ai/keys) → `POLLINATIONS_API_KEY=sk_…` for the reliable endpoint) |
 | **Audio → SRT** | Nothing to do — faster-whisper runs locally and free |
 
@@ -214,7 +215,10 @@ variables — the picker never stores or sends them.
 | `GEMINI_API_KEY` | — | Google Gemini (free tier) — powers text AND image (Nano Banana) |
 | `GEMINI_MODEL` | `gemini-3.6-flash` | Gemini text model |
 | `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Nano Banana image model (`gemini-2.5-flash-image` for first-gen) |
-| `IMAGE_PROVIDER` | `gemini` | `gemini` (default) · `pollinations` (always-free) · `local` · `none` |
+| `IMAGE_PROVIDER` | `gemini` | `gemini` (default) · `huggingface` · `pollinations` (always-free) · `local` · `none` |
+| `HUGGINGFACE_API_KEY` | — | Free HF token (“Inference Providers” permission) — enables the Hugging Face image engine |
+| `HUGGINGFACE_IMAGE_MODEL` | `black-forest-labs/FLUX.1-schnell` | HF text-to-image model id |
+| `HUGGINGFACE_BASE_URL` | `https://router.huggingface.co/hf-inference/models` | HF Inference Providers router (a dedicated Inference Endpoint URL also works) |
 | `POLLINATIONS_API_KEY` | *(empty)* | Optional free Pollinations key (`sk_…` from enter.pollinations.ai — reliable endpoint; without it the keyless free tier is used) |
 | `LOCAL_SD_URL` | `http://127.0.0.1:7860` | Local Stable Diffusion (AUTOMATIC1111 API) |
 | `HUGGINGFACE_API_KEY` | — | Reserved for future HF endpoints |
@@ -235,7 +239,7 @@ Provider adapters live under `lib/ai/` and implement one interface each:
 
 ```
 TextAIProvider   lib/ai/text/{templates,openai,gemini}.ts
-ImageAIProvider  lib/ai/image/{pollinations,gemini,local}.ts
+ImageAIProvider  lib/ai/image/{pollinations,gemini,huggingface,local}.ts
 ```
 
 Add a backend, switch it on via `AI_TEXT_PROVIDER` / `IMAGE_PROVIDER`, and every
@@ -257,7 +261,7 @@ components/
   common/               # generators, output cards, page-specific clients
   layout/               # sidebar, mobile nav, app shell
 lib/
-  ai/                   # providers: text (openai/gemini/template) + image (pollinations/local)
+  ai/                   # providers: text (openai/gemini/template) + image (gemini/huggingface/pollinations/local)
   audio/                # ffmpeg detection, SRT builder/validator, job registry, pipeline
   storage/              # history (localStorage, DB-ready interface)
   api/                  # route helpers + rate limiting

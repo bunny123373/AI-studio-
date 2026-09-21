@@ -78,6 +78,7 @@ interface ImageResult {
 
 const IMAGE_ENGINES = [
   { value: "gemini", label: "Gemini (default)" },
+  { value: "huggingface", label: "Hugging Face (needs token)" },
   { value: "pollinations", label: "Pollinations (free)" },
 ];
 
@@ -854,7 +855,7 @@ export function ThumbnailClient() {
               <Field
                 id="th-engine"
                 label="Image engine"
-                hint="Gemini (Nano Banana) is the default. Image models have their own quota — when exhausted, the tool honestly falls back to free Pollinations. Pollinations' free tier can be busy during peak hours."
+                hint="Gemini (Nano Banana) is the default. Hugging Face needs a free HUGGINGFACE_API_KEY token. Any engine that fails or isn't configured honestly falls back to free Pollinations (its free tier can be busy at peak times)."
               >
                 <Select
                   id="th-engine"
