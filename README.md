@@ -190,8 +190,9 @@ still works.** Keys never reach the browser.
 
 Anything OpenAI-compatible works (Ollama, Groq, OpenRouter, LM Studio, vLLM,
 DeepSeek…) — the provider is a plain `fetch` to `OPENAI_BASE_URL/chat/completions`.
-If a provider fails at runtime the app **falls back to the template engine**, so
-output always arrives.
+Transient provider failures (503 “high demand”, 429, 5xx blips) get a short
+backoff-and-retry first; if the provider still fails, the app **falls back to the
+template engine** and says so, so output always arrives.
 
 Besides the env default (`AI_TEXT_PROVIDER`), Settings → *Switch provider &
 model (runtime)* lets you change the active provider and model in the browser
