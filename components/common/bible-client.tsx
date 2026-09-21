@@ -107,7 +107,6 @@ export function BibleClient() {
         toolLabel: `Bible · ${active.label}`,
         prompt: Object.values(values).filter(Boolean).join(" · ") || active.label,
         resultText: data.raw ?? "",
-        createdAt: Date.now(),
         status: "success",
         mode: data.mode,
       });

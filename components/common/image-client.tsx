@@ -87,7 +87,6 @@ export function ImageClient() {
           toolLabel: "AI Image",
           prompt: prompt.trim(),
           resultText: data.url ?? data.dataUrl ?? "",
-          createdAt: Date.now(),
           status: "success",
           mode: "ai",
         });

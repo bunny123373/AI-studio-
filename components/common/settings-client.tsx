@@ -3,8 +3,11 @@
 import * as React from "react";
 import {
   CheckCircle2,
+  Download,
   Image as ImageIcon,
+  Languages,
   Mic,
+  MicVocal,
   Settings2,
   Sparkles,
   XCircle,
@@ -21,6 +24,9 @@ interface Status {
   image?: { id: string; label: string; configured: boolean };
   whisper?: { configured: boolean; model: string; note?: string };
   ffmpeg?: { found: boolean };
+  ytDlp?: { found: boolean };
+  diarization?: { installed: boolean; tokenConfigured: boolean; ready: boolean };
+  translation?: { configured: boolean; provider?: string };
 }
 
 function Row({
@@ -138,6 +144,38 @@ export function SettingsClient() {
                 : "Not found — WAV uploads still work; other formats need FFmpeg."
             }
           />
+          <Row
+            icon={<Download className="size-5" />}
+            title="yt-dlp (YouTube → SRT)"
+            status={status.ytDlp?.found ? "ok" : "no"}
+            detail={
+              status.ytDlp?.found
+                ? "Found — transcribe videos straight from a YouTube URL."
+                : "Not found — install with `pip install yt-dlp` to enable YouTube URL transcription."
+            }
+          />
+          <Row
+            icon={<MicVocal className="size-5" />}
+            title="Speaker diarization"
+            status={status.diarization?.ready ? "ok" : "no"}
+            detail={
+              status.diarization?.ready
+                ? "Ready — subtitle lines can be labelled Speaker 1 / 2 / …"
+                : status.diarization?.installed
+                  ? "pyannote installed but no HF token — set PYANNOTE_AUTH_TOKEN."
+                  : "Optional — install `pip install pyannote.audio` and set PYANNOTE_AUTH_TOKEN to label speakers."
+            }
+          />
+          <Row
+            icon={<Languages className="size-5" />}
+            title="Bilingual subtitles"
+            status={status.translation?.configured ? "ok" : "no"}
+            detail={
+              status.translation?.configured
+                ? `${status.translation.provider ?? "AI provider"} ready — translate subtitles into another language.`
+                : "Add a text AI provider (OpenAI-compatible or Gemini) to get dual-line translated subtitles."
+            }
+          />
         </div>
       ) : null}
 
@@ -169,11 +207,16 @@ export function SettingsClient() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p>
-              Default is <b className="text-foreground">Pollinations.ai</b> — free, no key,
-              needs internet. It can be busy; hit “New variation” to retry.
+              Default is <b className="text-foreground">Pollinations.ai</b> — free, needs
+              internet. Works keyless; if the free tier is busy, add a free key
+              (Quest Pollen — no card) at{" "}
+              <a className="underline" href="https://enter.pollinations.ai/keys" target="_blank" rel="noreferrer">
+                enter.pollinations.ai
+              </a>{" "}
+              and set <code>POLLINATIONS_API_KEY</code>. Hit “New variation” to retry.
             </p>
             <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
-              {`IMAGE_PROVIDER=pollinations   # free, keyless (default)\n# IMAGE_PROVIDER=local        # local Stable Diffusion\n# LOCAL_SD_URL=http://127.0.0.1:7860\n# IMAGE_PROVIDER=none         # disable`}
+              {`IMAGE_PROVIDER=pollinations   # free, keyless (default)\n# POLLINATIONS_API_KEY=sk_...  # free quest key -> reliable gen endpoint\n# IMAGE_PROVIDER=local        # local Stable Diffusion\n# LOCAL_SD_URL=http://127.0.0.1:7860\n# IMAGE_PROVIDER=none         # disable`}
             </pre>
             <p>Keys are never exposed to the browser — the server makes every call.</p>
           </CardContent>
@@ -208,6 +251,21 @@ export function SettingsClient() {
                 <code className={CODE}>tiny/base/small/medium/large-v3</code>.
               </li>
               <li>
+                <b className="text-foreground">YouTube URLs</b> (optional): install{" "}
+                <code className={CODE}>pip install yt-dlp</code> to transcribe videos
+                from a link instead of uploading a file.
+              </li>
+              <li>
+                <b className="text-foreground">Speaker labels</b> (optional): install{" "}
+                <code className={CODE}>pip install pyannote.audio</code> and set{" "}
+                <code className={CODE}>PYANNOTE_AUTH_TOKEN</code> (Hugging Face token;
+                accept the pyannote/speaker-diarization-3.1 model terms first).
+              </li>
+              <li>
+                <b className="text-foreground">Bilingual subtitles</b> (optional):
+                configure a text AI provider to auto-translate subtitle lines.
+              </li>
+              <li>
                 Temp uploads are deleted automatically{" "}
                 (<code className={CODE}>AUDIO_RETENTION_HOURS</code>, default 0 = after
                 each job).
@@ -223,7 +281,7 @@ export function SettingsClient() {
           <CardContent className="space-y-3 text-sm text-muted-foreground">
             <p>Full reference in <code className={CODE}>.env.example</code>:</p>
             <pre className="overflow-x-auto rounded-md border border-border bg-muted/40 p-3 text-xs leading-5">
-              {`MAX_AUDIO_MB=200\nAUDIO_WORK_DIR=./tmp-audio\nAUDIO_RETENTION_HOURS=0\nFFMPEG_PATH=\nRATE_LIMIT_MAX=40\nRATE_LIMIT_WINDOW_MS=60000`}
+              {`MAX_AUDIO_MB=200\nAUDIO_WORK_DIR=./tmp-audio\nAUDIO_RETENTION_HOURS=0\nFFMPEG_PATH=\nYTDLP_PATH=\nPYANNOTE_AUTH_TOKEN=\nRATE_LIMIT_MAX=40\nRATE_LIMIT_WINDOW_MS=60000`}
             </pre>
             <p className="text-xs">
               After editing <code className={CODE}>.env.local</code>, restart the dev

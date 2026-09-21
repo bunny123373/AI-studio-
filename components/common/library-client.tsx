@@ -112,7 +112,6 @@ export function LibraryClient() {
       toolLabel: "Prompt Library",
       prompt: p.text,
       resultText: p.text,
-      createdAt: Date.now(),
       status: "success",
     });
   };

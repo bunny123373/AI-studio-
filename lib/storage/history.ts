@@ -17,9 +17,12 @@ export interface HistoryItem {
   mode?: "template" | "ai";
 }
 
+/** New history entry — `createdAt` is optional; the store stamps it. */
+export type HistoryInput = Omit<HistoryItem, "createdAt"> & { createdAt?: number };
+
 export interface HistoryStore {
   list(): HistoryItem[];
-  add(item: HistoryItem): void;
+  add(item: HistoryInput): void;
   remove(id: string): void;
   clear(): void;
 }
@@ -57,7 +60,7 @@ export const localHistoryStore: HistoryStore = {
   },
   add(item) {
     const items = this.list();
-    items.unshift(item);
+    items.unshift({ ...item, createdAt: item.createdAt ?? Date.now() });
     writeItems(items.slice(0, MAX_ITEMS));
   },
   remove(id) {

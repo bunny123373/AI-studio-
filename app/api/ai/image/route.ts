@@ -5,19 +5,19 @@ import { getImageProvider } from "@/lib/ai/image";
 import type { ImageGenerationInput } from "@/lib/ai/types";
 
 const STYLES: Record<string, string> = {
-  realistic: "photorealistic, 8k, sharp details",
-  cinematic: "cinematic lighting, film look, dramatic",
-  anime: "anime style, vibrant, clean lineart",
-  "3d": "3D render, octane, soft studio lighting",
-  pixar: "pixar-like 3D animation style, cute, stylized",
-  illustration: "digital illustration, painterly",
-  "digital-art": "digital art, concept art, trending on artstation",
-  fantasy: "epic fantasy, mystical, detailed",
-  christian: "Christian symbolism, serene light, reverent tone",
-  nature: "natural landscape, vivid colors, golden hour",
-  product: "product photography, studio backdrop, commercial",
-  portrait: "professional portrait, shallow depth of field",
-  thumbnail: "YouTube thumbnail style, bold, high contrast, minimal text",
+  realistic: "natural photo, soft daylight",
+  cinematic: "cinematic mood, dramatic light",
+  anime: "anime art, clean lines",
+  "3d": "3d render, studio light",
+  pixar: "pixar style, cute",
+  illustration: "painterly illustration",
+  "digital-art": "digital art, concept art",
+  fantasy: "fantasy scene, mystical glow",
+  christian: "serene, reverent atmosphere",
+  nature: "nature scene, vivid colors",
+  product: "studio product shot, clean backdrop",
+  portrait: "portrait, shallow depth of field",
+  thumbnail: "bold thumbnail, high contrast, minimal",
 };
 
 const RATIOS: Record<string, [number, number]> = {
@@ -26,6 +26,28 @@ const RATIOS: Record<string, [number, number]> = {
   "9:16": [720, 1280],
   "4:3": [1024, 768],
 };
+
+/** Script names used when baking selected-language text onto the image. */
+const LANG_WORDS: Record<string, string> = {
+  en: "",
+  te: "in Telugu script",
+  hi: "in Hindi script",
+  ta: "in Tamil script",
+  kn: "in Kannada script",
+  ml: "in Malayalam script",
+};
+
+/**
+ * Build an optional "text on the image" overlay phrase. Kept short (120 chars)
+ * so the composed prompt stays inside the provider's limit. English renders
+ * best with image models; other scripts are best-effort — the UI says so.
+ */
+function buildOverlayPhrase(text: string, textLang: string): string {
+  const overlay = text.trim().slice(0, 120);
+  if (!overlay) return "";
+  const langWord = LANG_WORDS[textLang];
+  return `, large bold text${langWord ? ` ${langWord}` : ""} on the image reading "${overlay}"`;
+}
 
 export async function POST(req: Request) {
   const rl = rateLimit(`img:${clientIp(req)}`, env.rateLimitMax, env.rateLimitWindowMs);
@@ -47,8 +69,12 @@ export async function POST(req: Request) {
   const ratio = typeof p.ratio === "string" ? p.ratio : "1:1";
   const size = RATIOS[ratio] ?? RATIOS["1:1"];
   const negative = typeof p.negative === "string" ? p.negative.slice(0, 500) : "";
+  const text = typeof p.text === "string" ? p.text : "";
+  const textLang = typeof p.textLang === "string" ? p.textLang : "en";
+  const overlayPhrase = buildOverlayPhrase(text, textLang);
 
-  const styledPrompt = (STYLES[style] ? `${prompt}, ${STYLES[style]}` : prompt).slice(0, 1000);
+  const baseStyled = STYLES[style] ? `${prompt}, ${STYLES[style]}` : prompt;
+  const styledPrompt = `${baseStyled}${overlayPhrase}`.slice(0, 1000);
 
   const input: ImageGenerationInput = {
     prompt: styledPrompt,
@@ -67,6 +93,19 @@ export async function POST(req: Request) {
         "No image provider is configured. Set IMAGE_PROVIDER=pollinations (free, keyless) or a local Stable Diffusion server, then restart. See .env.example.",
     });
   }
-  const result = await provider.generate(input);
+  let result = await provider.generate(input);
+  // Some free services (Pollinations) occasionally 500 on specific style
+  // keywords while the same prompt works un-styled. Retry once with the raw
+  // prompt so the user still gets an image instead of a dead end.
+  if (
+    !result.ok &&
+    /500/.test(String(result.error)) &&
+    styledPrompt !== prompt
+  ) {
+    result = await provider.generate({
+      ...input,
+      prompt: `${prompt}${overlayPhrase}`.slice(0, 1000),
+    });
+  }
   return json(result);
 }

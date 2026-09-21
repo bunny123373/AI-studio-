@@ -19,10 +19,14 @@ import { cn } from "@/lib/utils";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const pathname = usePathname();
-
-  React.useEffect(() => {
+  // Close the mobile drawer when navigating. This is the React-sanctioned
+  // "adjust state during rendering" pattern (guarded, converges) — no effect
+  // needed, which also keeps `react-hooks/set-state-in-effect` happy.
+  const [prevPath, setPrevPath] = React.useState(pathname);
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
     setDrawerOpen(false);
-  }, [pathname]);
+  }
 
   return (
     <div className="min-h-dvh bg-background text-foreground">

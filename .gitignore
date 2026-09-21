@@ -30,5 +30,9 @@ next-env.d.ts
 /tmp-audio/
 *.tmp-audio
 
+# python bytecode (scripts/transcribe.py)
+__pycache__/
+*.pyc
+
 # vercel
 .vercel

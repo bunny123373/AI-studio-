@@ -17,6 +17,8 @@ export const maxDuration = 300; // background pipeline may take minutes
  *   mode      — speech|song             (default speech)
  *   maxChars  — subtitle line length target (song mode)
  *   model     — tiny|base|small|medium|large-v3 (default WHISPER_MODEL)
+ *   translateTo — optional 2-letter target language for bilingual subtitles
+ *   diarize   — "1" to request speaker labels (needs pyannote.audio)
  *
  * Responds immediately with a jobId; poll /api/audio/status/[jobId].
  */
@@ -59,6 +61,10 @@ export async function POST(req: Request) {
   const model = ["tiny", "base", "small", "medium", "large-v3"].includes(modelRaw)
     ? modelRaw
     : env.whisperModel;
+  const translateTo = String(form.get("translateTo") ?? "").slice(0, 8).toLowerCase();
+  const diarize =
+    String(form.get("diarize") ?? "") === "1" ||
+    String(form.get("diarize") ?? "").toLowerCase() === "true";
 
   const buf = new Uint8Array(await fileEntry.arrayBuffer());
   const { jobId } = startTranscribe({
@@ -66,8 +72,11 @@ export async function POST(req: Request) {
     mode,
     maxChars,
     model,
+    source: "upload",
     fileName: fileEntry.name.slice(0, 200),
     fileData: buf,
+    translateTo,
+    diarize,
   });
 
   return json({ ok: true, jobId }, 202);

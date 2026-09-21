@@ -39,13 +39,20 @@ const TOOL_LINK: Record<string, string> = {
 const TOOL_DEFAULT_LINK = "/";
 
 export function HistoryClient() {
-  const [items, setItems] = React.useState<HistoryItem[]>([]);
+  const [items, setItems] = React.useState<HistoryItem[]>(() =>
+    getHistoryStore().list(),
+  );
+  // Live "… ago" timestamps — refresh the clock every 30s.
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    const t = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(t);
+  }, []);
 
   const refresh = React.useCallback(() => {
     setItems(getHistoryStore().list());
   }, []);
-
-  React.useEffect(refresh, [refresh]);
 
   const remove = (id: string) => {
     getHistoryStore().remove(id);
@@ -96,7 +103,7 @@ export function HistoryClient() {
                         </span>
                       ) : null}
                       <span className="text-[11px] text-muted-foreground">
-                        {fmtClock((Date.now() - item.createdAt) / 1000)} ago
+                        {fmtClock((now - item.createdAt) / 1000)} ago
                       </span>
                     </div>
                     <div className="flex gap-2">

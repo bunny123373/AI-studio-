@@ -12,7 +12,10 @@ import { env } from "@/lib/ai/env";
 
 const execFileP = promisify(execFile);
 
-export const WORK_DIR = path.resolve(process.cwd(), env.audioWorkDir);
+export const WORK_DIR = path.resolve(
+  /* turbopackIgnore: true */ process.cwd(),
+  env.audioWorkDir,
+);
 
 export const PYTHON_JS = "transcribe.py";
 export const TRANSCRIBE_SCRIPT = path.join(process.cwd(), "scripts", PYTHON_JS);
@@ -61,7 +64,7 @@ export async function findFfmpeg(): Promise<string | null> {
       { windowsHide: true, timeout: 15000 },
     );
     const p = stdout.trim().split("\n").pop() ?? "";
-    if (p && existsSync(p)) return p;
+    if (p && existsSync(/* turbopackIgnore: true */ p)) return p;
   } catch {
     // python or bundle missing
   }
@@ -88,6 +91,114 @@ export async function isFasterWhisperAvailable(): Promise<boolean> {
       { windowsHide: true, timeout: 20000 },
     );
     return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Speaker diarization availability: pyannote.audio installed AND a HF token
+ * present (PYANNOTE_AUTH_TOKEN / HUGGINGFACE_API_KEY / HF_TOKEN). This is the
+ * honest signal the UI uses to enable the "Speaker labels" option.
+ */
+export async function isDiarizationReady(): Promise<{
+  installed: boolean;
+  tokenConfigured: boolean;
+}> {
+  const tokenConfigured = Boolean(
+    env.pyanoteAuthToken ||
+      env.huggingfaceApiKey ||
+      process.env.HF_TOKEN,
+  );
+  try {
+    await execFileP(
+      "python",
+      ["-c", "import pyannote.audio"],
+      { windowsHide: true, timeout: 25000 },
+    );
+    return { installed: true, tokenConfigured };
+  } catch {
+    return { installed: false, tokenConfigured };
+  }
+}
+
+/* ------------------------------------------------ YouTube (via yt-dlp) -- */
+
+export const YOUTUBE_WORK_DIR = path.join(WORK_DIR, "youtube");
+
+/** Locate yt-dlp: env → PATH. Returns the executable string or null. */
+export async function findYtDlp(): Promise<string | null> {
+  if (env.ytdlpPath) {
+    if (existsSync(env.ytdlpPath)) return env.ytdlpPath;
+    return null;
+  }
+  try {
+    const { stdout } = await execFileP("yt-dlp", ["--version"], {
+      windowsHide: true,
+      timeout: 8000,
+    });
+    if (stdout.trim()) return "yt-dlp";
+  } catch {
+    // not on PATH
+  }
+  return null;
+}
+
+export async function isYtDlpAvailable(): Promise<boolean> {
+  return (await findYtDlp()) !== null;
+}
+
+/**
+ * Download the best available audio track of a YouTube URL into the temp
+ * work dir and return the local file path. Conversion to WAV happens later
+ * with FFmpeg, so any container yt-dlp picks (m4a/webm/opus…) is fine.
+ */
+export async function downloadYoutubeAudio(
+  url: string,
+  ytDlp: string,
+  jobId: string,
+): Promise<string> {
+  mkdirSync(YOUTUBE_WORK_DIR, { recursive: true });
+  const outPattern = path.join(YOUTUBE_WORK_DIR, `${jobId}.%(ext)s`);
+  await execFileP(
+    ytDlp,
+    [
+      "-f", "bestaudio/best",
+      "--no-playlist",
+      "--no-warnings",
+      "--no-progress",
+      "-o", outPattern,
+      "--", url,
+    ],
+    {
+      windowsHide: true,
+      timeout: 15 * 60 * 1000,
+      maxBuffer: 64 * 1024 * 1024,
+    },
+  );
+  const match = readdirSync(YOUTUBE_WORK_DIR).find((n) =>
+    n.startsWith(`${jobId}.`),
+  );
+  if (!match) {
+    throw new Error(
+      "yt-dlp finished but produced no audio file. The video may be unavailable or region-locked.",
+    );
+  }
+  return path.join(YOUTUBE_WORK_DIR, match);
+}
+
+/** True for supported YouTube URL forms (host check only, no network I/O). */
+export function isYoutubeUrl(value: string): boolean {
+  try {
+    const host = new URL(value.trim()).hostname.toLowerCase();
+    return (
+      host === "youtube.com" ||
+      host === "www.youtube.com" ||
+      host === "m.youtube.com" ||
+      host === "music.youtube.com" ||
+      host === "youtu.be" ||
+      host.endsWith(".youtube.com")
+    );
   } catch {
     return false;
   }

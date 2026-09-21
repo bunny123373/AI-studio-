@@ -32,7 +32,7 @@ const SYSTEM_FOR: Record<string, string> = {
     "Write a Christian YouTube video script with '## Hook', '## Introduction', '## Main Content', '## Scene Suggestions', '## Voice-over', '## CTA'.",
   "christian-thumbnail": "Give a short, punchy Christian thumbnail image prompt and text suggestion with minimal words on the image.",
   thumbnail:
-    "Create a YouTube thumbnail concept: '## Concept', '## Thumbnail Text Suggestions', '## Layout Suggestion', '## Color Suggestion', '## Image Generation Prompt'. Keep text on image minimal.",
+    "Create a YouTube thumbnail concept: '## Concept', '## Thumbnail Text Suggestions', '## Layout Suggestion', '## Color Suggestion', '## Image Generation Prompt'. Keep text on image minimal — at most 4 short words. Write the Thumbnail Text Suggestions in the language from the prompt's Language field (if it is not English); the Image Generation Prompt should describe a scene with empty space for the text.",
 };
 
 export function defaultSystem(tool: string): string {

@@ -13,6 +13,7 @@ export const env = {
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
   geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
   imageProvider: process.env.IMAGE_PROVIDER ?? "pollinations",
+  pollinationsApiKey: process.env.POLLINATIONS_API_KEY ?? "",
   localSdUrl: (process.env.LOCAL_SD_URL ?? "http://127.0.0.1:7860").replace(/\/$/, ""),
   huggingfaceApiKey: process.env.HUGGINGFACE_API_KEY ?? "",
   whisperModel: process.env.WHISPER_MODEL ?? "small",
@@ -20,6 +21,8 @@ export const env = {
   audioWorkDir: process.env.AUDIO_WORK_DIR ?? "./tmp-audio",
   audioRetentionHours: Number(process.env.AUDIO_RETENTION_HOURS ?? 0),
   ffmpegPath: process.env.FFMPEG_PATH ?? "",
+  ytdlpPath: process.env.YTDLP_PATH ?? "",
+  pyanoteAuthToken: process.env.PYANNOTE_AUTH_TOKEN ?? "",
   rateLimitMax: Number(process.env.RATE_LIMIT_MAX ?? 40),
   rateLimitWindowMs: Number(process.env.RATE_LIMIT_WINDOW_MS ?? 60000),
 };

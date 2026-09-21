@@ -93,7 +93,6 @@ export function GenPage({
       toolLabel,
       prompt: promptSummary || title,
       resultText: data.raw ?? "",
-      createdAt: Date.now(),
       status: "success",
       mode: data.mode,
     });

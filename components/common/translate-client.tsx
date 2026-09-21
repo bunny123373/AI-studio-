@@ -70,7 +70,6 @@ export function TranslateClient() {
           toolLabel: "Translator",
           prompt: `${to} · ${text.trim().slice(0, 120)}`,
           resultText: data.text ?? "",
-          createdAt: Date.now(),
           status: "success",
           mode: "ai",
         });
