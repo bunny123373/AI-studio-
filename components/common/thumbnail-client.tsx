@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Clapperboard, Download, ImagePlus } from "lucide-react";
+import { Clapperboard, Download, ImagePlus, Link2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -307,6 +307,15 @@ export function ThumbnailClient() {
   const prefill = useQueryPrefill();
   const [videoTitle, setVideoTitle] = React.useState(prefill.title ?? "");
   const [mainTopic, setMainTopic] = React.useState(prefill.topic ?? "");
+  const [youtubeUrl, setYoutubeUrl] = React.useState("");
+  const [ytFetching, setYtFetching] = React.useState(false);
+  const [ytError, setYtError] = React.useState<string | null>(null);
+  const [ytInfo, setYtInfo] = React.useState<{
+    title: string | null;
+    channel: string | null;
+    thumbnailDataUrl: string | null;
+    notice?: string;
+  } | null>(null);
   const [emotion, setEmotion] = React.useState(prefill.emotion ?? "powerful");
   const [style, setStyle] = React.useState(prefill.style ?? "christian");
   const [character, setCharacter] = React.useState("");
@@ -418,6 +427,80 @@ export function ThumbnailClient() {
     setPortraitName(file?.name ?? "");
     if (!file) return;
     setPortraitUrl(URL.createObjectURL(file));
+  };
+
+  /**
+   * Paste a YouTube link → fetch the real video title/channel (oEmbed) and use
+   * the video's own thumbnail as the palette reference. Honest: no claiming we
+   * "analyzed the video" — a real title + its thumbnail colors, nothing more.
+   */
+  const loadYoutubeInfo = async () => {
+    const url = youtubeUrl.trim();
+    if (!url) return;
+    setYtFetching(true);
+    setYtError(null);
+    try {
+      const res = await fetch("/api/youtube/info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const d = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        title?: string | null;
+        channel?: string | null;
+        thumbnailDataUrl?: string | null;
+        notice?: string;
+      };
+      if (!res.ok || !d.ok) {
+        setYtError(d.error ?? "Could not read that video.");
+        return;
+      }
+      setYtInfo({
+        title: d.title ?? null,
+        channel: d.channel ?? null,
+        thumbnailDataUrl: d.thumbnailDataUrl ?? null,
+        notice: d.notice,
+      });
+      if (d.title) setVideoTitle(d.title);
+      if (d.thumbnailDataUrl) {
+        // The video's own thumbnail steers the palette (prompt-level, honest).
+        setReferenceUrl(d.thumbnailDataUrl);
+        setReferenceName("from YouTube video");
+        setPalette([]);
+        setPaletteNote(null);
+        loadImageElement(d.thumbnailDataUrl)
+          .then((img) => {
+            const colors = extractPalette(img);
+            if (colors.length) setPalette(colors);
+            else
+              setPaletteNote(
+                "Could not pick dominant colors from the video thumbnail.",
+              );
+          })
+          .catch(() =>
+            setPaletteNote(
+              "Could not read the video thumbnail — generated freely.",
+            ),
+          );
+      }
+    } catch {
+      setYtError("Network error — could not reach the info service.");
+    } finally {
+      setYtFetching(false);
+    }
+  };
+
+  const clearYoutubeInfo = () => {
+    setYtInfo(null);
+    setYtError(null);
+    setYoutubeUrl("");
+    // Also drop the palette/reference that came from the video thumbnail.
+    setReferenceUrl(null);
+    setReferenceName("");
+    setPalette([]);
+    setPaletteNote(null);
   };
 
   /** One thumbnail variant: new seed + composition angle, then text/portrait. */
@@ -563,13 +646,95 @@ export function ThumbnailClient() {
     <div>
       <PageHeader
         title="Thumbnail Generator"
-        subtitle="Get a pro thumbnail concept — layout, colors, text rules — then generate A/B variations with real text in your language, your portrait, and a reference palette."
+        subtitle="Get a pro thumbnail concept — layout, colors, text rules — then generate A/B variations with real text in your language, your portrait, and a reference palette. Paste a YouTube link to load the video's real title and use its own thumbnail colors."
         badge={<Badge variant="secondary">1280×720 · 16:9</Badge>}
       />
 
       <Card className="mb-6 border-border">
         <CardContent className="p-5">
           <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              id="th-yt"
+              label="YouTube link (optional)"
+              className="sm:col-span-2"
+              hint="Paste a video link — its real title auto-fills the concept and its own thumbnail colors steer the palette (no fake 'video analysis')."
+            >
+              <div className="flex gap-2">
+                <Input
+                  id="th-yt"
+                  value={youtubeUrl}
+                  onChange={(e) => {
+                    setYoutubeUrl(e.target.value);
+                    setYtError(null);
+                  }}
+                  placeholder="https://youtu.be/…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      loadYoutubeInfo();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={loadYoutubeInfo}
+                  loading={ytFetching}
+                  disabled={!youtubeUrl.trim()}
+                >
+                  <Link2 /> Load
+                </Button>
+              </div>
+            </Field>
+
+            {ytError ? (
+              <p className="sm:col-span-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                {ytError}
+              </p>
+            ) : null}
+
+            {ytInfo ? (
+              <div className="sm:col-span-2 flex items-center gap-3 rounded-md border border-border bg-muted/30 p-3">
+                {ytInfo.thumbnailDataUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={ytInfo.thumbnailDataUrl}
+                    alt="Video thumbnail"
+                    className="h-14 w-24 shrink-0 rounded-md border border-border object-cover"
+                  />
+                ) : null}
+                <div className="min-w-0 flex-1 text-xs">
+                  <div className="truncate font-semibold text-foreground">
+                    {ytInfo.title ?? "Untitled video"}
+                  </div>
+                  {ytInfo.channel ? (
+                    <div className="truncate text-muted-foreground">
+                      {ytInfo.channel}
+                    </div>
+                  ) : null}
+                  {ytInfo.notice ? (
+                    <div className="mt-1 text-amber-200">{ytInfo.notice}</div>
+                  ) : null}
+                  {ytInfo.thumbnailDataUrl ? (
+                    <div className="mt-1 text-muted-foreground">
+                      Thumbnail colors added as the palette reference.
+                    </div>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearYoutubeInfo}
+                  aria-label="Clear YouTube link"
+                >
+                  <X />
+                </Button>
+              </div>
+            ) : null}
+
             <Field id="th-video" label="Video Title" className="sm:col-span-2">
               <Input
                 id="th-video"
