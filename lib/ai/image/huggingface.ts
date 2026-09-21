@@ -22,6 +22,9 @@ import type {
  *    they load — withRetry rides that out; if it still fails we say so.
  *  - Model + base URL are configurable (HUGGINGFACE_IMAGE_MODEL /
  *    HUGGINGFACE_BASE_URL), so a dedicated Inference Endpoint URL also works.
+ *    The default is stabilityai/stable-diffusion-3-medium-diffusers; older
+ *    defaults (black-forest-labs/FLUX.1-schnell) now answer 410 Gone on the
+ *    hf-inference route.
  */
 export const huggingfaceProvider: ImageProvider = {
   id: "huggingface",
@@ -80,7 +83,12 @@ export const huggingfaceProvider: ImageProvider = {
             }
             if (res.status === 404) {
               throw new Error(
-                `Hugging Face has no model "${model}" on this route. Set HUGGINGFACE_IMAGE_MODEL to a served text-to-image model.`,
+                `Hugging Face has no model "${model}" on this route. Set HUGGINGFACE_IMAGE_MODEL to a served text-to-image model — e.g. stabilityai/stable-diffusion-3-medium-diffusers.`,
+              );
+            }
+            if (res.status === 410) {
+              throw new Error(
+                `Hugging Face retired "${model}" on the hf-inference route (410 Gone). Set HUGGINGFACE_IMAGE_MODEL to a served text-to-image model — e.g. stabilityai/stable-diffusion-3-medium-diffusers.`,
               );
             }
             throw new Error(`Hugging Face error ${res.status}: ${txt.slice(0, 300)}`);

@@ -22,7 +22,8 @@ export const env = {
     "https://router.huggingface.co/hf-inference/models"
   ).replace(/\/$/, ""),
   huggingfaceImageModel:
-    process.env.HUGGINGFACE_IMAGE_MODEL ?? "black-forest-labs/FLUX.1-schnell",
+    process.env.HUGGINGFACE_IMAGE_MODEL ??
+      "stabilityai/stable-diffusion-3-medium-diffusers",
   whisperModel: process.env.WHISPER_MODEL ?? "small",
   maxAudioMb: Number(process.env.MAX_AUDIO_MB ?? 200),
   audioWorkDir: process.env.AUDIO_WORK_DIR ?? "./tmp-audio",
