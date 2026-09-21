@@ -6,6 +6,7 @@ import { Clapperboard, Download, ImagePlus, Link2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { Field } from "@/components/common/field";
 import { PageHeader } from "@/components/common/page-header";
@@ -332,6 +333,14 @@ export function ThumbnailClient() {
   const [language, setLanguage] = React.useState(prefill.lang ?? "en");
   const [thumbText, setThumbText] = React.useState(prefill.text ?? "");
 
+  /**
+   * "guided" = fill the fields, the AI writes the image prompt.
+   * "prompt" = the user pastes one complete prompt and generates straight away —
+   * no other field is required.
+   */
+  const [promptMode, setPromptMode] = React.useState<"guided" | "prompt">("guided");
+  const [fullPrompt, setFullPrompt] = React.useState("");
+
   const concept = useGenerator("/api/thumbnail");
 
   const [variations, setVariations] = React.useState(3);
@@ -354,6 +363,10 @@ export function ThumbnailClient() {
   const imagePromptBlock: OutputBlock | undefined = conceptResult?.blocks?.find(
     (b) => b.title.toLowerCase().includes("image generation prompt"),
   );
+
+  /** The prompt the variants are actually built from, in either mode. */
+  const effectivePrompt =
+    promptMode === "prompt" ? fullPrompt.trim() : (imagePromptBlock?.text ?? "");
 
   // Live elapsed-seconds clock while the concept generates (Ollama on CPU
   // takes ~90s — a static spinner is a bad look).
@@ -577,7 +590,8 @@ export function ThumbnailClient() {
   };
 
   const generateVariants = async () => {
-    if (!imagePromptBlock?.text) return;
+    const source = effectivePrompt;
+    if (!source) return;
     setVariantsLoading(true);
     setVariants([]);
     setRetrying(false);
@@ -589,8 +603,8 @@ export function ThumbnailClient() {
     // The AI paints ONLY the background — asking image models to draw Indian
     // scripts gives English or gibberish, so we never let it write the text.
     const basePrompt = overlay
-      ? `${imagePromptBlock.text}, no text, no words, no letters, clean empty space at the bottom for a headline`
-      : imagePromptBlock.text;
+      ? `${source}, no text, no words, no letters, clean empty space at the bottom for a headline`
+      : source;
 
     // Reference style → palette steering (prompt-level, honest).
     const colorSuffix = palette.length
@@ -649,12 +663,53 @@ export function ThumbnailClient() {
     <div>
       <PageHeader
         title="Thumbnail Generator"
-        subtitle="Get a pro thumbnail concept — layout, colors, text rules — then generate A/B variations with real text in your language, your portrait, and a reference palette. Paste a YouTube link to load the video's real title and use its own thumbnail colors."
+        subtitle="Two ways to work: fill the fields and let the AI write the image prompt, or switch to Single prompt and paste a complete prompt — then generate A/B variations with real text in your language, your portrait, and a reference palette. Paste a YouTube link to load the video's real title and use its own thumbnail colors."
         badge={<Badge variant="secondary">1280×720 · 16:9</Badge>}
       />
 
       <Card className="mb-6 border-border">
         <CardContent className="p-5">
+          <Field
+            id="th-mode"
+            label="How should the thumbnail be built?"
+            className="mb-4"
+            hint="Guided writes the image prompt from the fields below. Single prompt skips that step — paste a complete prompt and generate straight away."
+          >
+            <Select
+              id="th-mode"
+              value={promptMode}
+              onChange={(e) =>
+                setPromptMode(e.target.value === "prompt" ? "prompt" : "guided")
+              }
+              options={[
+                { value: "guided", label: "Guided — fill the fields, AI writes the prompt" },
+                { value: "prompt", label: "Single prompt — paste my own full prompt" },
+              ]}
+            />
+          </Field>
+
+          {promptMode === "prompt" ? (
+            <div className="grid gap-4">
+              <Field
+                id="th-prompt"
+                label="Full image prompt"
+                hint="Paste any complete prompt — subject, lighting, style, camera, mood. Nothing else is required; the text below is drawn on top separately, so this can stay pure artwork."
+              >
+                <Textarea
+                  id="th-prompt"
+                  rows={6}
+                  value={fullPrompt}
+                  onChange={(e) => setFullPrompt(e.target.value)}
+                  placeholder="e.g. cinematic close-up of a bearded pastor on a dark stage, warm rim light, volumetric haze, deep teal and gold palette, 16:9 YouTube thumbnail, ultra detailed, high contrast"
+                />
+              </Field>
+              <p className="text-xs text-muted-foreground">
+                {fullPrompt.trim()
+                  ? `${fullPrompt.trim().length} characters — the image model reads roughly the first 1000.`
+                  : "Tip: describe the subject, the light, the mood and the colours. Add “no text” for a clean background to write the headline on."}
+              </p>
+            </div>
+          ) : (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
               id="th-yt"
@@ -770,27 +825,6 @@ export function ThumbnailClient() {
                 options={STYLES}
               />
             </Field>
-            <Field id="th-lang" label="Text language">
-              <Select
-                id="th-lang"
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                options={THUMB_LANGS}
-              />
-            </Field>
-            <Field
-              id="th-text"
-              label="Text on the image (optional)"
-              hint="Short headline — the concept auto-fills it. Drawn with a real font in the selected language; any script renders correctly."
-            >
-              <Input
-                id="th-text"
-                value={thumbText}
-                onChange={(e) => setThumbText(e.target.value)}
-                placeholder="e.g. MUST WATCH or 3 రోజులు"
-                maxLength={120}
-              />
-            </Field>
             <Field id="th-char" label="Character (optional)">
               <Input
                 id="th-char"
@@ -808,35 +842,66 @@ export function ThumbnailClient() {
               />
             </Field>
           </div>
+          )}
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              onClick={generateConcept}
-              loading={concept.loading}
-              disabled={missingConcept}
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <Field
+              id="th-text"
+              label="Text on the image (optional)"
+              hint="Short headline — drawn on top with a real font in the selected language, so any script renders correctly. Works in both modes."
             >
-              <Clapperboard /> Generate thumbnail concept
-            </Button>
+              <Input
+                id="th-text"
+                value={thumbText}
+                onChange={(e) => setThumbText(e.target.value)}
+                placeholder="e.g. MUST WATCH or 3 రోజులు"
+                maxLength={120}
+              />
+            </Field>
+            <Field id="th-lang" label="Text language">
+              <Select
+                id="th-lang"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                options={THUMB_LANGS}
+              />
+            </Field>
           </div>
+
+          {promptMode === "guided" ? (
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                onClick={generateConcept}
+                loading={concept.loading}
+                disabled={missingConcept}
+              >
+                <Clapperboard /> Generate thumbnail concept
+              </Button>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
-      {concept.error ? <ErrorState message={concept.error} /> : null}
-      {concept.loading ? (
-        <LoadingState message={`Generating thumbnail concept… ${conceptElapsed}s`} />
+      {promptMode === "guided" ? (
+        <>
+          {concept.error ? <ErrorState message={concept.error} /> : null}
+          {concept.loading ? (
+            <LoadingState message={`Generating thumbnail concept… ${conceptElapsed}s`} />
+          ) : null}
+
+          {!concept.loading && !concept.error ? (
+            <OutputCard
+              result={conceptResult}
+              message="No thumbnail concept generated yet."
+              onRegenerate={conceptResult ? generateConcept : undefined}
+              fileName="thumbnail-concept.txt"
+              className="mb-6"
+            />
+          ) : null}
+        </>
       ) : null}
 
-      {!concept.loading && !concept.error ? (
-        <OutputCard
-          result={conceptResult}
-          message="No thumbnail concept generated yet."
-          onRegenerate={conceptResult ? generateConcept : undefined}
-          fileName="thumbnail-concept.txt"
-          className="mb-6"
-        />
-      ) : null}
-
-      {imagePromptBlock ? (
+      {promptMode === "prompt" || imagePromptBlock ? (
         <div className="mb-6">
           <div className="mb-3 flex items-center gap-2">
             <ImagePlus className="size-5 text-primary" />
@@ -845,8 +910,10 @@ export function ThumbnailClient() {
           <Card className="border-border">
             <CardContent className="p-5">
               <p className="mb-4 rounded-md border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
-                <span className="font-semibold text-foreground">Image prompt: </span>
-                {imagePromptBlock.text}
+                <span className="font-semibold text-foreground">
+                  {promptMode === "prompt" ? "Your prompt: " : "Image prompt: "}
+                </span>
+                {effectivePrompt || "Paste a prompt above to generate."}
                 {palette.length
                   ? ` Dominant color palette: ${palette.join(", ")}.`
                   : ""}
@@ -987,7 +1054,11 @@ export function ThumbnailClient() {
               ) : null}
 
               <div className="mt-5 flex flex-wrap items-center gap-2">
-                <Button onClick={generateVariants} loading={variantsLoading}>
+                <Button
+                  onClick={generateVariants}
+                  loading={variantsLoading}
+                  disabled={!effectivePrompt}
+                >
                   <ImagePlus />
                   {variantsLoading
                     ? `Creating ${variations} thumbnails…`
