@@ -10,20 +10,43 @@ import {
   isPythonAvailable,
   isYtDlpAvailable,
 } from "@/lib/audio/ffmpeg";
+import { cloudTranscriberConfigured, cloudTranscriberLabel } from "@/lib/audio/cloud-whisper";
 
 /** GET — which providers are configured. Never exposes secret values. */
 export async function GET() {
   const text = textProviderConfig();
   const image = getImageProvider();
-  const [ffmpeg, whisper, ytDlp, diarization] = await Promise.all([
+  const [ffmpeg, whisper, ytDlp, diarization, python] = await Promise.all([
     findFfmpeg(),
     isFasterWhisperAvailable(),
     isYtDlpAvailable(),
     isDiarizationReady(),
+    isPythonAvailable(),
   ]);
+  const serverless = Boolean(
+    process.env.VERCEL ||
+      process.env.NETLIFY ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME,
+  );
+  const localReady = python && whisper;
+  const cloudReady = cloudTranscriberConfigured();
   return json({
     ok: true,
     text: text ?? { id: "none", configured: false },
+    localReady,
+    serverless,
+    transcriber: {
+      engine: (localReady ? "local" : cloudReady ? "cloud" : "none") as
+        | "local"
+        | "cloud"
+        | "none",
+      label: localReady
+        ? "faster-whisper (local)"
+        : cloudReady
+          ? cloudTranscriberLabel()
+          : undefined,
+      model: localReady ? env.whisperModel : cloudReady ? env.transcriberModel : undefined,
+    },
     // Selectable text providers for the runtime switcher (keys stay in env).
     textOptions: [
       {
@@ -77,7 +100,7 @@ export async function GET() {
       note: "faster-whisper runs locally (no API key).",
     },
     ffmpeg: { found: Boolean(ffmpeg) },
-    python: { found: await isPythonAvailable() },
+    python: { found: python },
     ytDlp: { found: Boolean(ytDlp) },
     diarization: {
       installed: diarization.installed,

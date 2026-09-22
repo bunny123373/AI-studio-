@@ -7,6 +7,7 @@ import {
   isYtDlpAvailable,
 } from "@/lib/audio/ffmpeg";
 import { textProviderConfig, getTextProvider } from "@/lib/ai/text";
+import { cloudTranscriberConfigured, cloudTranscriberLabel } from "@/lib/audio/cloud-whisper";
 import { env } from "@/lib/ai/env";
 
 /** GET — capability status for the audio pipeline (no secrets). */
@@ -26,11 +27,28 @@ export async function GET() {
       process.env.NETLIFY ||
       process.env.AWS_LAMBDA_FUNCTION_NAME,
   );
+  // Which engine can transcribe here: local faster-whisper (preferred) → the
+  // optional cloud transcriber (serverless fallback) → none.
+  const localReady = python && fasterWhisper;
+  const cloudReady = cloudTranscriberConfigured();
+  const transcriber = {
+    engine: (localReady ? "local" : cloudReady ? "cloud" : "none") as
+      | "local"
+      | "cloud"
+      | "none",
+    label: localReady
+      ? "faster-whisper (local)"
+      : cloudReady
+        ? cloudTranscriberLabel()
+        : undefined,
+    model: localReady ? env.whisperModel : cloudReady ? env.transcriberModel : undefined,
+  };
   return json({
     ok: true,
     // Local engine = Python + faster-whisper on this host.
-    localReady: python && fasterWhisper,
+    localReady,
     serverless,
+    transcriber,
     ffmpeg: { found: Boolean(ffmpeg), path: ffmpeg ?? undefined },
     python: { found: python },
     fasterWhisper: { found: fasterWhisper },

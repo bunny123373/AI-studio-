@@ -21,8 +21,10 @@ import {
   TRANSCRIBE_SCRIPT,
   WORK_DIR,
 } from "@/lib/audio/ffmpeg";
-import { createJob, getJob, updateJob, type AudioJob, type TranscribeSegment } from "@/lib/audio/jobs";
+import { createJob, getJob, updateJob, type AudioJob, type TranscribeResult, type TranscribeSegment } from "@/lib/audio/jobs";
 import { translateCues } from "@/lib/audio/translate";
+import { env } from "@/lib/ai/env";
+import { transcribeWithCloudWhisper } from "@/lib/audio/cloud-whisper";
 import { uid } from "@/lib/utils";
 
 export interface TranscribeOptions {
@@ -330,6 +332,7 @@ async function runPipeline(jobId: string, opts: TranscribeOptions) {
         url: opts.source === "url" ? opts.url : undefined,
         diarizeApplied: Boolean(payload.diarizeApplied),
         translatedTo: translatedTo || undefined,
+        engine: "local",
         notice: notices.length ? notices.join(" ") : undefined,
       },
     });
@@ -348,4 +351,56 @@ async function runPipeline(jobId: string, opts: TranscribeOptions) {
 
 export function getJobState(jobId: string): AudioJob | undefined {
   return getJob(jobId);
+}
+
+/**
+ * Cloud transcriber fallback — for hosts that cannot run the local engine
+ * (serverless: no Python). Runs synchronously (job polling is in-memory and
+ * does not survive across serverless instances) and returns the same result
+ * shape as the local pipeline, labelled `engine: "cloud"`. Never used when
+ * the local engine is ready. Uploads only — YouTube links still need yt-dlp.
+ */
+export async function transcribeUploadWithCloud(
+  opts: TranscribeOptions,
+): Promise<TranscribeResult> {
+  const cloud = await transcribeWithCloudWhisper({
+    fileData: opts.fileData ?? new Uint8Array(),
+    fileName: opts.fileName ?? "audio",
+    language: opts.language,
+    model: env.transcriberModel,
+  });
+
+  const segments = cloud.segments;
+  const notices: string[] = [];
+  const translatedTo = opts.translateTo?.trim() || "";
+  if (translatedTo) {
+    const res = await translateCues(segments.map((s) => s.text), translatedTo);
+    if (res.ok) {
+      for (let i = 0; i < segments.length; i++) {
+        if (res.translations[i]) segments[i].translation = res.translations[i];
+      }
+    } else {
+      notices.push(res.error);
+    }
+  }
+
+  if (opts.diarize) {
+    notices.push(
+      "Speaker diarization is not available with the cloud transcriber — " +
+        "labels were not added.",
+    );
+  }
+
+  return {
+    language: cloud.detectedLanguage ?? opts.language,
+    detectedLanguage: cloud.detectedLanguage,
+    duration: cloud.duration,
+    segments,
+    model: env.transcriberModel,
+    source: "upload",
+    diarizeApplied: false,
+    translatedTo: translatedTo || undefined,
+    engine: "cloud",
+    notice: notices.length ? notices.join(" ") : undefined,
+  };
 }

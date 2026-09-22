@@ -31,6 +31,16 @@ export const env = {
     process.env.HUGGINGFACE_IMAGE_MODEL ??
       "stabilityai/stable-diffusion-3-medium-diffusers",
   whisperModel: process.env.WHISPER_MODEL ?? "small",
+  // Optional cloud transcription fallback for serverless hosts (no Python):
+  // any OpenAI-compatible /audio/transcriptions endpoint — defaults to Groq's
+  // free Whisper API. Only used when the local engine cannot run; results are
+  // always labelled with the engine that actually ran.
+  transcriberUrl: (
+    process.env.AI_TRANSCRIBER_URL ??
+    "https://api.groq.com/openai/v1/audio/transcriptions"
+  ).replace(/\/$/, ""),
+  transcriberKey: process.env.AI_TRANSCRIBER_API_KEY ?? "",
+  transcriberModel: process.env.AI_TRANSCRIBER_MODEL ?? "whisper-large-v3-turbo",
   maxAudioMb: Number(process.env.MAX_AUDIO_MB ?? 200),
   audioWorkDir: process.env.AUDIO_WORK_DIR ?? "./tmp-audio",
   audioRetentionHours: Number(process.env.AUDIO_RETENTION_HOURS ?? 0),

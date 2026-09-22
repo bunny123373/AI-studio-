@@ -47,6 +47,9 @@ export interface TranscribeResult {
   url?: string;
   /** Whether speaker diarization actually ran. */
   diarizeApplied?: boolean;
+  /** Which engine produced these segments — local faster-whisper or the
+   *  optional cloud transcriber (serverless fallback). Always honest. */
+  engine: "local" | "cloud";
   /** Honest notes, e.g. diarization unavailable or translation skipped. */
   notice?: string;
   /** Target language when bilingual translation was requested/applied. */

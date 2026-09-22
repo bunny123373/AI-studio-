@@ -58,4 +58,44 @@ export const openrouterProvider: TextProvider = {
       }
     });
   },
+  async chat(messages, opts) {
+    if (!env.openrouterApiKey) {
+      throw new Error("OPENROUTER_API_KEY is not set.");
+    }
+    return withRetry(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120_000);
+      try {
+        const res = await fetch(`${env.openrouterBaseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.openrouterApiKey}`,
+          },
+          body: JSON.stringify({
+            model: modelFor("openrouter"),
+            temperature: 0.7,
+            messages: [
+              ...(opts?.system
+                ? [{ role: "system" as const, content: opts.system }]
+                : []),
+              ...messages,
+            ],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`OpenRouter error ${res.status}: ${body.slice(0, 300)}`);
+        }
+        const data = await res.json();
+        const text: string | undefined =
+          data?.choices?.[0]?.message?.content;
+        if (!text) throw new Error("OpenRouter returned an empty response.");
+        return text.trim();
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+  },
 };

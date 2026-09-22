@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { TOOL_CARDS } from "@/components/layout/nav";
 
 const STATS = [
-  { value: "12", label: "Creator tools" },
+  { value: "13", label: "Creator tools" },
   { value: "$0", label: "Required to start" },
   { value: "6", label: "Indian languages" },
   { value: "Local", label: "Transcription option" },

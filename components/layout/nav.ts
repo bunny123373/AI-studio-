@@ -11,11 +11,11 @@ import {
   Library,
   ListVideo,
   Mic,
+  PlaySquare,
   Settings,
   Sparkles,
   SquarePen,
   StickyNote,
-  Youtube,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,7 +39,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/thumbnail", label: "Thumbnail", icon: Clapperboard },
       { href: "/lyrics", label: "Lyrics", icon: Mic },
       { href: "/captions", label: "Captions", icon: StickyNote },
-      { href: "/youtube", label: "YouTube", icon: Youtube },
+      { href: "/youtube", label: "YouTube", icon: PlaySquare },
       { href: "/scripts", label: "Scripts", icon: SquarePen },
       { href: "/seo", label: "SEO", icon: FileSearch },
     ],
@@ -47,6 +47,7 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     label: "Create",
     items: [
+      { href: "/chat", label: "Agent Chat", icon: Bot },
       { href: "/prompts", label: "Video Prompts", icon: ListVideo },
       { href: "/bible", label: "Bible", icon: BookOpenText },
       { href: "/translate", label: "Translator", icon: Languages },
@@ -85,11 +86,12 @@ export const TOOL_CARDS: {
   { href: "/thumbnail", icon: Clapperboard, title: "Thumbnail Generator", desc: "Concepts, prompts and 16:9 thumbnails." },
   { href: "/lyrics", icon: Mic, title: "Lyrics Generator", desc: "Telugu, English, Hindi & more. Worship to pop." },
   { href: "/captions", icon: StickyNote, title: "Caption Generator", desc: "Captions + hashtags + CTAs for every platform." },
-  { href: "/youtube", icon: Youtube, title: "YouTube Title Generator", desc: "Titles, description, tags, hooks, pinned comment." },
+  { href: "/youtube", icon: PlaySquare, title: "YouTube Title Generator", desc: "Titles, description, tags, hooks, pinned comment." },
   { href: "/scripts", icon: SquarePen, title: "Script Generator", desc: "Full video scripts with voice-over notes." },
   { href: "/seo", icon: FileSearch, title: "SEO Generator", desc: "SEO titles, descriptions, keywords and tags." },
   { href: "/prompts", icon: ListVideo, title: "AI Video Prompt Generator", desc: "Scene-by-scene AI video prompts." },
   { href: "/bible", icon: BookOpenText, title: "Bible Content Generator", desc: "Stories, prayers, sermons, Christian songs." },
+  { href: "/chat", icon: Bot, title: "Agent Chat", desc: "Real multi-turn AI chat — or the honest offline assistant." },
   { href: "/translate", icon: Languages, title: "Translator", desc: "Translate across 6 Indian languages." },
   { href: "/audio-to-srt", icon: AudioLines, title: "Audio → SRT Subtitles", desc: "Real transcription to subtitle files." },
   { href: "/library", icon: Library, title: "Prompt Library", desc: "Favourite, copy and reuse 60+ prompts." },

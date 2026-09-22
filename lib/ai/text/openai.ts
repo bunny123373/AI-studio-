@@ -53,4 +53,44 @@ export const openaiProvider: TextProvider = {
       }
     });
   },
+  async chat(messages, opts) {
+    if (!env.openaiApiKey && env.openaiBaseUrl === "https://api.openai.com/v1") {
+      throw new Error("OPENAI_API_KEY is not set.");
+    }
+    return withRetry(async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 120_000);
+      try {
+        const res = await fetch(`${env.openaiBaseUrl}/chat/completions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(env.openaiApiKey ? { Authorization: `Bearer ${env.openaiApiKey}` } : {}),
+          },
+          body: JSON.stringify({
+            model: modelFor("openai"),
+            temperature: 0.7,
+            messages: [
+              ...(opts?.system
+                ? [{ role: "system" as const, content: opts.system }]
+                : []),
+              ...messages,
+            ],
+          }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(`Provider error ${res.status}: ${body.slice(0, 300)}`);
+        }
+        const data = await res.json();
+        const text: string | undefined =
+          data?.choices?.[0]?.message?.content;
+        if (!text) throw new Error("Provider returned an empty response.");
+        return text.trim();
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+  },
 };

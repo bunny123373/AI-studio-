@@ -4,12 +4,24 @@
  * paid providers can all implement these interfaces.
  */
 
+export interface ChatMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 export interface TextProvider {
   id: string;
   label: string;
   /** Whether the provider is configured (e.g. env key present). */
   configured: boolean;
   generate(prompt: string, opts?: { system?: string }): Promise<string>;
+  /**
+   * Multi-turn conversation (Agent Chat). Sends the full message history to
+   * the provider so it can remember context. When no provider is configured
+   * the chat uses the honest offline assistant instead — this method is only
+   * called for configured providers.
+   */
+  chat(messages: ChatMessage[], opts?: { system?: string }): Promise<string>;
 }
 
 export interface ImageGenerationInput {

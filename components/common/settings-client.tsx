@@ -34,6 +34,8 @@ interface Status {
   runtime?: { provider: string | null; model: string | null };
   image?: { id: string; label: string; configured: boolean };
   whisper?: { configured: boolean; model: string; note?: string };
+  /** Which transcription engine this host can run: local | cloud | none. */
+  transcriber?: { engine: "local" | "cloud" | "none"; label?: string; model?: string };
   /** True when the local engine (Python + faster-whisper) can run on this host. */
   localReady?: boolean;
   /** Vercel/Netlify/Lambda — a host where Python can never be installed. */
@@ -238,13 +240,19 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
           <Row
             icon={<Mic className="size-5" />}
             title="Audio → SRT (faster-whisper)"
-            status={status.whisper?.configured ? "ok" : "no"}
+            status={
+              status.whisper?.configured || status.transcriber?.engine === "cloud"
+                ? "ok"
+                : "no"
+            }
             detail={
               <span>
                 {status.whisper
                   ? `model: ${status.whisper.model} · runs 100% locally on the server`
                   : status.serverless
-                    ? "Not available on this serverless host — deploy on Render (see below)."
+                    ? status.transcriber?.engine === "cloud"
+                      ? `${status.transcriber.label ?? "Cloud Whisper"} ready for uploads — YouTube links still need Render (see below).`
+                      : "Not available — add a free AI_TRANSCRIBER_API_KEY (Groq) for cloud uploads, or deploy on Render (see below)."
                     : "Install Python + faster-whisper (instructions below)"}
               </span>
             }
@@ -419,18 +427,42 @@ export function SettingsClient({ showPicker = false }: { showPicker?: boolean })
               third-party speech API. It needs Python on the same host as the app.
             </p>
             {status?.serverless ? (
-              <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                This deployment is serverless, so the local engine cannot run here.
-                Deploy the same repo on <b>Render</b> — it ships a{" "}
-                <code className={CODE}>Dockerfile</code> and{" "}
-                <code className={CODE}>render.yaml</code> that already include Python,
-                faster-whisper, FFmpeg and yt-dlp, so there is nothing to install.
-              </p>
+              status.transcriber?.engine === "cloud" ? (
+                <p className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+                  <b className="text-foreground">
+                    {status.transcriber.label ?? "Cloud Whisper"}
+                  </b>{" "}
+                  is active: uploads are transcribed here with{" "}
+                  <code className={CODE}>AI_TRANSCRIBER_API_KEY</code> — no Python needed.
+                  Local faster-whisper is still used automatically on any host that can run
+                  it (your machine, a VPS, Render).
+                </p>
+              ) : (
+                <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                  This deployment is serverless, so the local engine cannot run here. Two
+                  options: add a free{" "}
+                  <code className={CODE}>AI_TRANSCRIBER_API_KEY</code> (Groq —{" "}
+                  <a className="underline" href="https://console.groq.com/keys" target="_blank" rel="noreferrer">
+                    console.groq.com/keys
+                  </a>
+                  ) to transcribe uploads in the cloud; or deploy the same repo on{" "}
+                  <b>Render</b> — it ships a <code className={CODE}>Dockerfile</code> and{" "}
+                  <code className={CODE}>render.yaml</code> with Python, faster-whisper,
+                  FFmpeg and yt-dlp for 100% local Whisper (YouTube links included).
+                </p>
+              )
             ) : (
               <p>You need Python and one package:</p>
             )}
             {status?.serverless ? (
               <ul className="list-inside list-disc space-y-1 text-xs">
+                {status.transcriber?.engine === "cloud" ? (
+                  <li>
+                    <b className="text-foreground">Cloud uploads</b> already work on this
+                    host ({status.transcriber.label ?? "Cloud Whisper"}). YouTube links and
+                    unlimited-length files still need the Render deployment below.
+                  </li>
+                ) : null}
                 <li>
                   Pick the model with the <code className={CODE}>WHISPER_MODEL</code> env
                   var: <code className={CODE}>tiny/base/small/medium/large-v3</code>. The

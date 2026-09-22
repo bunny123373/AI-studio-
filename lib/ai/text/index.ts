@@ -20,10 +20,22 @@ export function getTextProvider(): TextProvider {
     case "gemini":
       return geminiProvider;
     case "none":
-      return { id: "none", label: "Disabled", configured: false, generate: async () => { throw new Error("Text provider disabled."); } };
+      return {
+        id: "none",
+        label: "Disabled",
+        configured: false,
+        generate: async () => { throw new Error("Text provider disabled."); },
+        chat: async () => { throw new Error("Text provider disabled."); },
+      };
     case "template":
     default:
-      return { id: "template", label: "Free template engine", configured: false, generate: async () => { throw new Error("Template mode."); } };
+      return {
+        id: "template",
+        label: "Free template engine",
+        configured: false,
+        generate: async () => { throw new Error("Template mode."); },
+        chat: async () => { throw new Error("Template mode."); },
+      };
   }
 }
 

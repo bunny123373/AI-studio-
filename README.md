@@ -14,7 +14,7 @@ Bible content, translation, and **real local audio → SRT subtitles**. Zero API
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
 ![faster-whisper](https://img.shields.io/badge/faster--whisper-100%25%20Local-2F855A?style=for-the-badge&logo=openai&logoColor=white)
 ![No API keys](https://img.shields.io/badge/No%20API%20Keys%20Required-EF4444?style=for-the-badge)
-![13 Tools](https://img.shields.io/badge/13%20AI%20Tools-111827?style=for-the-badge)
+![14 AI Tools](https://img.shields.io/badge/14%20AI%20Tools-111827?style=for-the-badge)
 
 </div>
 
@@ -38,8 +38,9 @@ in seconds when you want them.
 
 | | |
 | --- | --- |
-| 🧠 **13 tools, one studio** | Images, thumbnails, lyrics, captions, YouTube packs, scripts, SEO, video prompts, Bible, translator, library, history, settings. |
+| 🧠 **14 tools, one studio** | Images, thumbnails, lyrics, captions, YouTube packs, scripts, SEO, video prompts, Bible, translator, library, history, settings — plus a real **Agent Chat**. |
 | 🎤 **Real Audio → SRT** | faster-whisper transcription runs **100% locally** — your audio never leaves your machine. Upload or paste a **YouTube URL**; get sentence-aware, karaoke-synced, editable subtitles (SRT/VTT/TXT). |
+| 💬 **Real Agent Chat** | Multi-turn conversation with your AI text provider (remembers context) — or the honest built-in offline assistant that answers from the studio's own guide when no key is set. Never fakes a reply. |
 | 🔓 **Free-first** | Dashboard, templates, library, history and settings work with **zero keys**. No locked features, no upsell walls. |
 | 🔌 **Swappable AI providers** | Text (`lib/ai/text/*`) and image (`lib/ai/image/*`) providers are plug-in by design — OpenAI-compatible, OpenRouter (Ling 3.0 Flash VL), Gemini, Pollinations.ai, local SD. |
 | 🛡 **Honest by default** | SEO tools state clearly that suggestions don't guarantee rankings. The Bible tool never invents quotes. No placeholder buttons. |
@@ -48,11 +49,12 @@ in seconds when you want them.
 
 ---
 
-## 🧰 The 15 Pages
+## 🧰 The 16 Pages
 
 | Tool | Route | What it does |
 | --- | --- | --- |
 | Dashboard | `/` | Overview, stats and **Quick Create** (URL prefill) |
+| Agent Chat | `/chat` | **Real multi-turn chat** — your AI text provider (OpenAI-compatible, OpenRouter, Gemini) with conversation history; the honest built-in offline assistant answers when none is configured |
 | AI Image | `/image` | Image generation — Gemini (Nano Banana) by default, plus Hugging Face + free Pollinations engines, SD WebUI optional |
 | Thumbnail | `/thumbnail` | Concept sheet + 16:9 image with **real text drawn in your language** (6 scripts, real fonts) + live generation timer |
 | Lyrics | `/lyrics` | Offline template engine · 6 languages · 10 song types · **natural Telugu** |
@@ -266,14 +268,17 @@ tool picks it up automatically. Output is honestly labelled
 app/                    # Pages + API routes (App Router)
   api/
     ai/                 # text + image generation endpoints
+    chat/               # agent chat (multi-turn, rate-limited)
     audio/              # transcribe / status / srt / health
     thumbnail lyrics caption youtube script seo video-prompt bible translate settings
 components/
   ui/                   # shadcn-style primitives (button, card, input, select…)
-  common/               # generators, output cards, page-specific clients
+  common/               # generators, output cards, page-specific clients (chat-client, …)
   layout/               # sidebar, mobile nav, app shell
 lib/
   ai/                   # providers: text (openai/openrouter/gemini/template) + image (gemini/huggingface/pollinations/local)
+  ai/chat.ts            # agent-chat orchestration (history → provider → honest fallback)
+  ai/chat-template.ts   # offline rule-based assistant (zero-key mode, no fake AI)
   audio/                # ffmpeg detection, SRT builder/validator, job registry, pipeline
   storage/              # history (localStorage, DB-ready interface)
   api/                  # route helpers + rate limiting
@@ -306,6 +311,11 @@ Runs anywhere Next.js runs — Vercel, Render, any Node host, Docker.
 - Audio → SRT shells out to Python + FFmpeg on the same machine, so it only runs
   on a host that has them. `MAX_AUDIO_MB`, `WHISPER_MODEL` and `AUDIO_WORK_DIR`
   are the knobs for staying within host limits. Job state is kept in memory.
+- On serverless hosts (no Python), uploads can fall back to an **optional cloud
+  transcriber** (`AI_TRANSCRIBER_API_KEY` — free Groq Whisper, OpenAI-compatible,
+  no FFmpeg needed). It is only used when local faster-whisper cannot run, and
+  results are always labelled with the engine that actually transcribed (never
+  faked). YouTube links still need a host with the local engine.
 - TTS is not bundled; for testing, synthesize speech (e.g. `edge-tts`) and feed
   it straight into Audio → SRT.
 
@@ -315,10 +325,11 @@ Runs anywhere Next.js runs — Vercel, Render, any Node host, Docker.
 | --- | --- | --- |
 | Your machine / a VPS | ✅ | Python + FFmpeg + yt-dlp installed locally |
 | **Render** (Docker) | ✅ | the repo's `Dockerfile` installs them for you |
-| Vercel / Netlify / Lambda | ❌ | serverless: no Python, no long-lived process |
+| Vercel / Netlify / Lambda + `AI_TRANSCRIBER_API_KEY` | ✅ uploads (cloud) | OpenAI-compatible Whisper fallback (e.g. free Groq) — no Python; YouTube links still need a local host |
+| Vercel / Netlify / Lambda (no key) | ❌ | serverless: no Python, no long-lived process |
 
 The UI reads `/api/audio/health` and says honestly which case you are in — it
-never fakes a transcript.
+never fakes a transcript, and each result shows which engine ran.
 
 ### Deploying to Render (full app, Audio → SRT included)
 
@@ -350,11 +361,13 @@ docker run --rm -p 3000:3000 --env-file .env.local balu-ai-studio
 ### Deploying to Vercel (free)
 
 The `vercel.json` pins every API route to `maxDuration: 60` (Hobby-plan cap).
-All image/text/thumbnail tools work — **Audio → SRT does not**, because
-serverless hosts have no Python; the UI detects this from `/api/audio/health`,
-shows a "deploy on Render" notice, and the upload routes return a clear 503
-instead of a doomed job. Use the Render blueprint above (or your local machine /
-a VPS) for transcription.
+All image/text/thumbnail tools work. **Audio → SRT on serverless** depends on
+whether a cloud transcriber is configured (`AI_TRANSCRIBER_API_KEY`): with it,
+**file uploads** are transcribed in the cloud (e.g. free Groq Whisper,
+`whisper-large-v3-turbo`) and the UI labels them "cloud whisper"; without it,
+the upload routes return a clear 503 and the UI says which options you have.
+**YouTube links always need the local engine** — use the Render blueprint above
+(or your local machine / a VPS) for those. The app never fakes a transcript.
 
 Environment variables to add in Vercel (*Settings → Environment Variables*):
 
@@ -367,6 +380,8 @@ Environment variables to add in Vercel (*Settings → Environment Variables*):
 | `GEMINI_IMAGE_MODEL` | `gemini-3.1-flash-image` | Gemini image model to call — needs billing enabled, the free tier has **0** image quota |
 | `HUGGINGFACE_API_KEY` | `hf_…` | optional Hugging Face image engine (`HUGGINGFACE_IMAGE_MODEL`, default `stabilityai/stable-diffusion-3-medium-diffusers`) |
 | `POLLINATIONS_API_KEY` | your key | reliable `gen.pollinations.ai` fallback endpoint |
+| `AI_TRANSCRIBER_API_KEY` | free Groq key | enables **upload** Audio → SRT on serverless hosts (cloud Whisper fallback; YouTube links still need Render) |
+| (optional) | `AI_TRANSCRIBER_URL`, `AI_TRANSCRIBER_MODEL` | override the OpenAI-compatible transcriber endpoint/model (defaults: Groq `/audio/transcriptions`, `whisper-large-v3-turbo`) |
 | (optional) | `OPENAI_API_KEY`, `PYANNOTE_AUTH_TOKEN`, … | set to taste, see Configuration |
 
 Deploy: push to GitHub → *vercel.com/new* → import the repo → add env vars →

@@ -14,7 +14,7 @@ import {
   Scissors,
   Trash2,
   UploadCloud,
-  Youtube,
+  PlaySquare,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -226,6 +226,8 @@ type Layout = (typeof LAYOUTS)[number]["value"];
 interface Health {
   localReady?: boolean;
   serverless?: boolean;
+  /** Which engine can transcribe here: local | cloud | none. */
+  transcriber?: { engine?: "local" | "cloud" | "none"; label?: string; model?: string };
   ffmpeg?: { found: boolean };
   python?: { found: boolean };
   fasterWhisper?: { found: boolean };
@@ -252,32 +254,36 @@ interface Seg {
   words: Word[];
 }
 
+interface JobResult {
+  language: string;
+  detectedLanguage?: string;
+  languageConfidence?: number;
+  duration: number;
+  model: string;
+  source: "upload" | "url";
+  url?: string;
+  diarizeApplied?: boolean;
+  translatedTo?: string;
+  notice?: string;
+  /** Which engine produced the segments — local faster-whisper or cloud. */
+  engine?: "local" | "cloud";
+  segments: {
+    start: number;
+    end: number;
+    text: string;
+    speaker?: string;
+    translation?: string;
+    words?: Word[];
+  }[];
+}
+
 interface JobStatus {
   ok: boolean;
   stage: string;
   progress: number;
   message: string;
   error?: string | null;
-  result?: {
-    language: string;
-    detectedLanguage?: string;
-    languageConfidence?: number;
-    duration: number;
-    model: string;
-    source: "upload" | "url";
-    url?: string;
-    diarizeApplied?: boolean;
-    translatedTo?: string;
-    notice?: string;
-    segments: {
-      start: number;
-      end: number;
-      text: string;
-      speaker?: string;
-      translation?: string;
-      words?: Word[];
-    }[];
-  } | null;
+  result?: JobResult | null;
 }
 
 function seedSegments(
@@ -356,6 +362,12 @@ export function AudioSrtClient() {
   );
   /** Vercel/Netlify/Lambda — a host where Python can never be installed. */
   const serverless = Boolean(health?.serverless);
+  /** The optional cloud transcriber is configured (serverless fallback). */
+  const cloudReady = health?.transcriber?.engine === "cloud";
+  /** The cloud engine is what transcribes here (no local engine on this host). */
+  const cloudOnly = !localReady && cloudReady;
+  const engineLabel = health?.transcriber?.label ?? "cloud transcriber";
+  const cloudModel = health?.transcriber?.model ?? "whisper-large-v3-turbo";
 
   /* ------------------------------------------------ health check */
   React.useEffect(() => {
@@ -396,6 +408,24 @@ export function AudioSrtClient() {
   };
 
   /* ------------------------------------------------ upload + poll */
+  /** Shared completion for both the local (polled) and cloud (synchronous) paths. */
+  const finish = (result: JobResult) => {
+    const seeded = seedSegments(result.segments);
+    setSegs(seeded);
+    rebuildSrt(seeded);
+    setLayout("original");
+    setSpeakersOn(false);
+    getHistoryStore().add({
+      id: uid("h"),
+      tool: "audio-to-srt",
+      toolLabel: "Audio → SRT",
+      prompt: `${result.source === "url" ? (result.url ?? "YouTube") : (file?.name ?? "audio")} · ${result.language} · ${mode} mode${result.translatedTo ? ` → ${result.translatedTo}` : ""}`,
+      resultText: buildSrtClient(seeded),
+      status: "success",
+      mode: "ai",
+    });
+  };
+
   const startUpload = async () => {
     if (!file) return;
     setUploading(true);
@@ -415,9 +445,28 @@ export function AudioSrtClient() {
         method: "POST",
         body: form,
       });
-      const data = (await res.json()) as { ok: boolean; jobId?: string; error?: string };
-      if (!data.ok || !data.jobId) {
+      const data = (await res.json()) as {
+        ok: boolean;
+        jobId?: string;
+        engine?: "local" | "cloud";
+        result?: JobResult;
+        error?: string;
+      };
+      if (!data.ok) {
         setUploadError(data.error ?? "Upload failed.");
+        setUploading(false);
+        return;
+      }
+      // Cloud transcribe is synchronous (serverless host) — the result comes
+      // back in this response; no job to poll.
+      if (data.result) {
+        setJob({ ok: true, stage: "complete", progress: 100, message: "Complete.", result: data.result });
+        finish(data.result);
+        setUploading(false);
+        return;
+      }
+      if (!data.jobId) {
+        setUploadError("Upload failed. Check your connection and try again.");
         setUploading(false);
         return;
       }
@@ -610,20 +659,7 @@ export function AudioSrtClient() {
         if (data.stage === "complete" && data.result) {
           window.clearInterval(timer);
           setUploading(false);
-          const seeded = seedSegments(data.result.segments);
-          setSegs(seeded);
-          rebuildSrt(seeded);
-          setLayout("original");
-          setSpeakersOn(false);
-          getHistoryStore().add({
-            id: uid("h"),
-            tool: "audio-to-srt",
-            toolLabel: "Audio → SRT",
-            prompt: `${data.result.source === "url" ? (data.result.url ?? "YouTube") : (file?.name ?? "audio")} · ${data.result.language} · ${mode} mode${data.result.translatedTo ? ` → ${data.result.translatedTo}` : ""}`,
-            resultText: buildSrtClient(seeded),
-            status: "success",
-            mode: "ai",
-          });
+          finish(data.result);
         } else if (data.stage === "error") {
           window.clearInterval(timer);
           setUploading(false);
@@ -820,7 +856,7 @@ export function AudioSrtClient() {
             sourceMode === "url" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Youtube className="size-4" /> YouTube URL
+          <PlaySquare className="size-4" /> YouTube URL
         </button>
       </div>
 
@@ -857,14 +893,33 @@ export function AudioSrtClient() {
           </div>
 
           {health && !localReady ? (
-            <p className="mt-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <p
+              className={`mt-3 rounded-md border px-3 py-2 text-xs ${
+                serverless && cloudReady
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+                  : "border-amber-500/30 bg-amber-500/10 text-amber-200"
+              }`}
+            >
               {serverless ? (
-                <>
-                  This deployment is serverless, which cannot run the local Whisper engine (no
-                  Python). Deploy the same repo on <b>Render</b> with the included{" "}
-                  <code className="font-mono">Dockerfile</code> to transcribe here — the steps are
-                  in Settings.
-                </>
+                cloudReady ? (
+                  <>
+                    <b>{engineLabel}</b> is active: uploads are transcribed here with your
+                    free <code className="font-mono">AI_TRANSCRIBER_API_KEY</code> — no
+                    Python needed on this host. Local faster-whisper is still used
+                    automatically wherever it can run (your machine, a VPS, Render).
+                  </>
+                ) : (
+                  <>
+                    This deployment is serverless, which cannot run the local Whisper engine
+                    (no Python). Transcribe uploads here by adding a free{" "}
+                    <code className="font-mono">AI_TRANSCRIBER_API_KEY</code> (Groq,{" "}
+                    <a className="underline" href="https://console.groq.com/keys" target="_blank" rel="noreferrer">
+                      console.groq.com/keys
+                    </a>
+                    ), or deploy the same repo on <b>Render</b> (Dockerfile included) for
+                    100% local Whisper. The app never fakes a transcript.
+                  </>
+                )
               ) : (
                 <>
                   The local engine is not ready. Install Python and run{" "}
@@ -899,10 +954,11 @@ export function AudioSrtClient() {
               YouTube links.
             </p>
           ) : null}
-          {health && serverless && !localReady ? (
+          {health && !localReady ? (
             <p className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              YouTube links need the local engine (yt-dlp + Whisper), which this serverless host
-              cannot run — deploy on <b>Render</b> to use them.
+              YouTube links need the local engine (yt-dlp + Whisper), which this host cannot
+              run — deploy on <b>Render</b> to use them
+              {cloudReady ? ", or find a direct MP3/WAV link and upload it instead" : ""}.
             </p>
           ) : null}
         </div>
@@ -936,18 +992,30 @@ export function AudioSrtClient() {
             options={SEGMENTATION}
           />
         </Field>
-        <Field
-          id="srt-model"
-          label="Whisper model"
-          hint="Larger = more accurate, slower, more RAM."
-        >
-          <Select
+        {cloudOnly ? (
+          <Field
             id="srt-model"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            options={MODELS}
-          />
-        </Field>
+            label="Cloud engine"
+            hint="Serverless hosts use the cloud transcriber's own model — set AI_TRANSCRIBER_MODEL to change it."
+          >
+            <div className="flex h-10 items-center rounded-md border border-border bg-muted/20 px-3 font-mono text-xs text-muted-foreground">
+              {engineLabel} · {cloudModel}
+            </div>
+          </Field>
+        ) : (
+          <Field
+            id="srt-model"
+            label="Whisper model"
+            hint="Larger = more accurate, slower, more RAM."
+          >
+            <Select
+              id="srt-model"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              options={MODELS}
+            />
+          </Field>
+        )}
         <Field
           id="srt-speakers"
           label="Speaker labels"
@@ -1005,11 +1073,11 @@ export function AudioSrtClient() {
       ) : null}
       {sourceMode === "url" ? (
         <div className="mt-5 flex flex-wrap items-center gap-3 rounded-md border border-border bg-muted/30 p-3">
-          <Youtube className="size-5 text-primary" />
+          <PlaySquare className="size-5 text-primary" />
           <p className="min-w-0 flex-1 truncate text-sm">
             {urlInput ? urlInput : "Paste a YouTube link above"}
           </p>
-          <Button onClick={startUrl} loading={uploading} disabled={!urlInput.trim() || uploading}>
+          <Button onClick={startUrl} loading={uploading} disabled={!urlInput.trim() || uploading || !localReady}>
             <AudioLines /> Transcribe
           </Button>
         </div>
@@ -1045,6 +1113,27 @@ export function AudioSrtClient() {
         </p>
       </CardContent>
     </Card>
+  ) : uploading ? (
+    <Card className="border-border">
+      <CardContent className="space-y-4 p-6">
+        <div className="flex items-center gap-3">
+          <Loader2 className="size-5 animate-spin text-primary" />
+          <div>
+            <p className="text-sm font-medium">
+              {cloudOnly ? "Transcribing in the cloud…" : "Preparing transcription…"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {cloudOnly
+                ? `${engineLabel} is turning your audio into timed subtitles. Longer files can take up to a minute on serverless hosts.`
+                : "Uploading audio to the server…"}
+            </p>
+          </div>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div className="h-full w-full animate-pulse rounded-full bg-primary/40" />
+        </div>
+      </CardContent>
+    </Card>
   ) : null;
 
   /* ------------------------------------------------ render: editor */
@@ -1056,7 +1145,11 @@ export function AudioSrtClient() {
             <h2 className="text-sm font-semibold">
               {segs.length} subtitles{" "}
               <span className="ml-1 font-normal text-muted-foreground">
-                · {langLabel(job?.result?.language ?? "auto")} · {mode} mode
+                · {langLabel(job?.result?.language ?? "auto")}
+                {job?.result?.engine === "cloud"
+                  ? ` · cloud whisper (${job.result.model})`
+                  : " · local faster-whisper"}
+                · {mode} mode
                 {job?.result?.translatedTo ? ` · translated → ${job.result.translatedTo}` : ""}
                 {hasSpeaker ? " · labelled speakers" : ""}
               </span>
@@ -1497,9 +1590,11 @@ export function AudioSrtClient() {
         </Card>
 
         <p className="text-[11px] leading-5 text-muted-foreground">
-          Privacy: uploaded audio and YouTube downloads are processed locally by this server —
-          nothing is sent to a third party. Translation uses your configured AI provider.
-          Temp files are deleted automatically.
+          {localReady
+            ? "Privacy: uploaded audio and YouTube downloads are processed locally by this server — nothing is sent to a third party. Translation uses your configured AI provider. Temp files are deleted automatically."
+            : cloudOnly
+              ? `Privacy: uploads are sent to ${engineLabel} using your AI_TRANSCRIBER_API_KEY — the audio leaves this server only for that call (this host has no local Python). Translation uses your configured AI provider.`
+              : "No transcription engine is running on this host, so no audio is processed here."}
         </p>
       </div>
     </div>
@@ -1518,11 +1613,13 @@ export function AudioSrtClient() {
         subtitle={
           localReady
             ? "Real, local transcription with faster-whisper. Upload speech or a song — or paste a YouTube URL — and get sentence-aware, editable subtitles with karaoke-level sync."
-            : "This host cannot run Whisper. Deploy the same app on Render (Dockerfile included) for real, local transcription — no third-party speech API."
+            : cloudOnly
+              ? `${engineLabel} transcribes uploads on this host without Python. YouTube links still need a local engine — see the note below.`
+              : "No Whisper engine is available on this host. Add a free AI_TRANSCRIBER_API_KEY (Groq) for cloud upload transcription, or deploy on Render (Dockerfile included) — the app never fakes a transcript."
         }
         badge={
-          <Badge variant={localReady ? "success" : "outline"}>
-            {localReady ? "100% local" : "needs a Whisper host"}
+          <Badge variant={localReady || cloudOnly ? "success" : "outline"}>
+            {localReady ? "100% local" : cloudOnly ? "cloud uploads" : "needs a Whisper engine"}
           </Badge>
         }
       />
